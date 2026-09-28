@@ -1,0 +1,9 @@
+{
+  "name": "sdlc-kit",
+  "version": "0.1.0",
+  "description": "Skills, templates and writing rules for the intent and the spec of a stage of work.",
+  "author": {
+    "name": "Thesis"
+  },
+  "repository": "https://github.com/thesis/sdlc-kit"
+}
