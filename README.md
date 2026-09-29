@@ -1,6 +1,6 @@
 # sdlc-kit
 
-thesis/sdlc-kit holds the components of the AI software development process at Thesis. In that process, each stage of work has three documents. The intent states the problem and the outcome. The spec states how the functionality works, for business, product and engineering readers. The plan tells the agents that build the change what to do. Intent and spec start as Linear documents, where people discuss them, and the plan is a pull request in the target repository. [The design proposal](https://claude.ai/artifact/YVkhSG2RrH7cJZX6YpHLzC) describes the process.
+thesis/sdlc-kit holds the components of the AI software development process at Thesis. In that process, each stage of work has three documents. The intent states the problem and the outcome. The spec states how the functionality works, for business, product and engineering readers. The plan tells the agents that build the change what to do. Intent and spec start as Linear documents, where people discuss them, and the plan is a pull request in the target repository.
 
 ## Plugins
 
