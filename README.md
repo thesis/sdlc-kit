@@ -1,6 +1,6 @@
 # sdlc-kit
 
-thesis/sdlc-kit holds the components of the AI software development process at Thesis. In that process, each stage of work has three documents. The intent states the problem and the outcome. The spec states how the functionality works, for business, product and engineering readers. The plan tells the agents that build the change what to do. Intent and spec start as Linear documents, where people discuss them, and the plan is a pull request in the target repository.
+thesis/sdlc-kit holds the components of the AI-native software development process at Thesis. The process follows [the AI-native SDLC playbook](https://claude.com/blog/the-ai-native-sdlc-playbook). The plugin in this repository supports the intent and the spec, two documents at the start of that process. Later components can add support for other stages.
 
 ## Plugins
 
