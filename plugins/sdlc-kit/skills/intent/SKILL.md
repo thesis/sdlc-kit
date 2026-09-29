@@ -33,29 +33,23 @@ The intent says what problem exists, who has it, and what outcome we want. Its r
    - Remove the guidance comments.
    - Set the second line of the header to `Owner: <owner> · Status: in review`.
    - Set the third line of the header to `Linear: pending`. The lint accepts `pending` until the document has a URL.
-   - Write the executive summary in the first draft, with at most five bullets for the reader who decides.
    - Give each open problem a number and an owner.
-   - Give each fact about an external system a link to its source.
 5. Run the lint on the draft:
 
    ```
    node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs --type intent <draft>
    ```
 
-   When the lint lists findings, fix the lines that it names. Then run the lint again. Do not do more than three attempts. Do not save a draft that fails the lint. After the third failed attempt, give the owner the outstanding findings and the path of the draft. Then wait for the owner to decide.
+   When the lint lists findings, follow the retry rule of the writing skill.
 6. Read the draft again against the rules that the lint cannot check. These rules are one word for one thing, no volatile counts, and no solution internals. Fix what you find. Then run the lint again.
 7. Create the Linear document with the `save_document` tool of the Linear MCP server:
    - Use the title `Intent: <name>`.
    - Give the document exactly one parent: the team or the project that the owner named.
    - Put the draft in `content` as markdown.
-
-   Linear has no status field for a document. The `Status:` line in the header is the status.
 8. Replace `pending` on the `Linear:` line with the URL of the new document. Run the lint on the changed draft. Then save the document again with `save_document` and the `id` of the document.
 9. Post a first comment on the document with the `save_comment` tool. Pass the `documentId` of the document. In the comment, list the open problems. Ask the named stakeholders for answers, with an @mention for each one. The comment follows the writing rules.
 10. Give the owner the URL of the document.
 
-## Later saves
-
-Run the lint before every save of the document, also for a small edit. The limit of three attempts applies to each save. Change the status only when the owner says so.
+## When the intent is agreed
 
 The intent is agreed when the owner marks it agreed. At that point each open problem has an answer, or it goes to the spec as an open problem.

@@ -20,7 +20,7 @@ The input is the Linear URL of the intent: $ARGUMENTS
 
 1. Read the intent with the `get_document` tool of the Linear MCP server. Read every comment thread on the intent with the `list_comments` tool. Pass the `documentId` of the intent. A resolved thread is a decision.
 2. List the open problems of the intent and the decisions already taken. Show the list to the owner. Get the confirmation of the owner before you write a draft. Ask the owner which Linear team or project gets the spec. Propose the parent of the intent as the default.
-3. Do the research read-only, in the repository that the owner gives, in external documents and in on-chain facts. Give every fact that the spec states a link to its source.
+3. Do the research read-only, in the repository that the owner gives, in external documents and in on-chain facts.
 4. Interview the owner only on the forks that the research cannot settle. Ask one question at a time. A fork that stays open becomes an open decision with an owner and a date, not a paragraph of options.
 5. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
    - Fill every section of the template.
@@ -28,7 +28,7 @@ The input is the Linear URL of the intent: $ARGUMENTS
    - Set the second line of the header to `Implements: Intent <intent URL> · Owner: <owner> · Status: in review`.
    - Give each open decision a number, an owner and a date.
    - In "11. Intent open problems, answered", give each open problem of the intent an answer or an owner.
-   - Refer to a section of the intent in the cross-reference form of the writing rules. The link goes to the heading in the Linear intent.
+   - Refer to a section of the intent in the cross-reference form of the writing rules.
 
    Write at the spec altitude:
    - A section that only an engineer can review goes to the plan, not to the spec.
@@ -41,19 +41,15 @@ The input is the Linear URL of the intent: $ARGUMENTS
    node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs --type spec <draft>
    ```
 
-   When the lint lists findings, fix the lines that it names. Then run the lint again. Do not do more than three attempts. Do not save a draft that fails the lint. After the third failed attempt, give the owner the outstanding findings and the path of the draft. Then wait for the owner to decide.
+   When the lint lists findings, follow the retry rule of the writing skill.
 7. Read the draft again against the rules that the lint cannot check. These rules are one word for one thing, no volatile counts, and the altitude rule above. Fix what you find. Then run the lint again.
 8. Create the Linear document with the `save_document` tool of the Linear MCP server:
    - Use the title `Spec: <name>`.
    - Give the document exactly one parent: the team or the project that the owner confirmed.
    - Put the draft in `content` as markdown.
-
-   Linear has no status field for a document. The `Status:` line in the header is the status.
 9. Post one comment for each open decision with the `save_comment` tool. Pass the `documentId` of the spec. Address each comment to the owner of the decision with an @mention. Each comment follows the writing rules.
 10. Give the owner the URL of the spec.
 
-## Later saves
-
-Run the lint before every save of the document, also for a small edit. The limit of three attempts applies to each save. Change the status only when the owner says so.
+## When the spec is agreed
 
 The spec is agreed when the owner marks it agreed. At that point each open problem of the intent has an answer or an owner, and no open decision blocks the plan.

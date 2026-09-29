@@ -6,7 +6,7 @@ user-invocable: false
 
 # Writing rules
 
-These rules apply Simplified Technical English (STE), ASD-STE100 Issue 9 (2025). STE is a controlled language for technical documents. It has writing rules and a dictionary of approved words with one meaning each. The rules below belong together because each one comes from STE or from the same aim: a reader understands the text on the first read.
+These rules apply Simplified Technical English (STE), [ASD-STE100 Issue 9 (2025)](https://www.asd-ste100.org/). STE is a controlled language for technical documents. It has writing rules and a dictionary of approved words with one meaning each. The rules below belong together because each one comes from STE or from the same aim: a reader understands the text on the first read.
 
 The rules govern three documents: the intent, the spec and the plan. They apply in full to all three, the plan included. They also govern every comment that a skill posts, on a Linear document or on a pull request. No judge runs on a comment; the author applies the rules.
 
@@ -17,21 +17,7 @@ The STE dictionary is not embedded here. Apply the writing rules and the two dic
 - Use the short, common word.
 - Give each word one meaning only.
 
-The STE rules that this skill carries:
-
-- One word for one thing, used every time. No synonyms for variety. A changed word signals a changed meaning.
-- Each word as one part of speech. "Test" is a noun: "do a test".
-- Short and common words: "start", not "initiate"; "use", not "utilize".
-- One instruction per sentence, at most 20 words. Descriptive sentences at most 25 words.
-- Active voice. Simple tenses only: no present perfect. No -ing verb forms outside technical names.
-- Articles and demonstratives kept: "the file", not "file".
-- At most three nouns in a cluster.
-- Paragraphs of at most six sentences on one topic, topic sentence first. A vertical list for more than three items.
-- Instructions in the imperative, and a warning before the instruction it applies to.
-
-STE is about how the document explains, not about simpler content. Accuracy wins: a correct technical term stays, with an explanation on first use. Identifiers, quoted text and names that the codebase uses are never rewritten. The specification is free on request from https://www.asd-ste100.org/.
-
-The sections from "Word rules" to "Instructions and warnings" are an unchanged copy of the writing-style rule that this skill is built from. The lint does not read them, because they quote the words and the forms that they ban.
+STE is about how the document explains, not about simpler content. Accuracy wins: a correct technical term stays, with an explanation on first use. Identifiers, quoted text and names that the codebase uses are never rewritten. [The specification](https://www.asd-ste100.org/) is free on request and explains each rule in full.
 
 <!-- lint-disable -->
 
@@ -186,7 +172,27 @@ These rules add to the copied rule.
 - **Cross-references.** A reference to another stage document names the document and the numbered section title. The quoted part is a link to that heading. In markdown the form is `spec section ["7. Deliverables"](spec.md#7-deliverables)`. In a Linear document the link goes to the heading of the other Linear document. The lint checks the form. For a local file, the lint also checks that the number and the title match a heading there.
 - **Closed stage.** When every pull request in the work order of the plan is merged, the stage directory is closed. No file in it changes again. A new need, a correction or a follow-up starts a new intent that links to the closed stage.
 - **Source every fact.** A number, an address or a behavior of an external system carries a link to its source.
-- **Executive summary at the top of the intent.** The intent starts with an executive summary of at most five bullets, for the reader who decides.
+
+## Durable records
+
+A stage document and a comment are durable records. The reader has no access to the conversation, the plan you followed or an earlier review.
+
+- **No meta-context.** The text describes its subject, never the process that produced it. Do not write `as discussed`, `as planned`, `based on the review`, `per your feedback`, `phase 1 of the plan` or `first attempt`. A decision lives in the document text, not in a thread.
+- **The end state, not the history.** A document says what the system does, not `we changed X to Y`. Do not describe earlier drafts, renames or the order in which the text grew. The "What changed" section of the plan is the one place for a log.
+- **The standalone test.** Before you publish, read the text with no other context. When it does not stand on its own as a statement about the subject, rewrite it.
+- **Back a claim with its proof.** A claim in a document or a comment points at its evidence: a link, a file, a command and its output.
+
+## Comments
+
+A comment reads like a teammate wrote it, not a bot.
+
+- Get straight to the point. Do not restate the text that the comment is about.
+- No filler openers: `I noticed that`, `It looks like`, `Just to flag`.
+- No hedging: `I believe`, `It appears that`.
+- No closing offers: `happy to discuss`, `let me know`.
+- No thanks and no praise: `Thanks!`, `Good point!`, `Great catch!`.
+- No AI tells: `I have addressed this by`, `As you suggested`, `Per your feedback`.
+- Plain prose. Use headers, bullets, bold or emoji only when the comment needs them.
 
 ## What the lint checks
 
@@ -196,11 +202,13 @@ Run the lint on a draft before each save:
 node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs --type intent <draft>
 ```
 
+Run it again before every later save, also for a small edit. When the lint lists findings, fix the lines that it names. Then run the lint again. Do not do more than three attempts for one save. Do not save a draft that fails the lint. After the third failed attempt, give the owner the outstanding findings and the path of the draft. Then wait for the owner to decide.
+
 Use `--type spec` or `--type plan` for the other documents. Use `--type prose` for any other text, such as a README: it runs the mechanical checks and skips the structure checks. Each finding is one line, `path:line: rule-id: message`. The exit code is 1 when a finding exists and 0 when the draft is clean.
 
 The lint checks these rules:
 
-- Structure: the title line, the header fields, and the numbered template headings in order. The header fields are `Owner:`, `Status:` and `Linear:` for the intent, `Implements:`, `Owner:` and `Status:` for the spec, and `Implements:` for the plan.
+- Structure: the title line, the header fields, and the numbered template headings in order. The header fields are `Owner:`, `Status:` and `Linear:` for the intent, `Implements:`, `Owner:` and `Status:` for the spec, and `Implements:` for the plan. Linear has no status field for a document, so the `Status:` line is the status. Change it only when the owner says so.
 - Structure, continued: required sections are not empty, and the executive summary has at most five bullets. In a section that the template numbers, every item has a number, or the section reads "None.".
 - Cross-references: the form above, and the target heading when the target is a local file. The form `section 7 of the spec` is a finding.
 - Em-dashes anywhere outside code.
