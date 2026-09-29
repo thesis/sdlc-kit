@@ -1,7 +1,6 @@
 ---
 name: intent
 description: Interviews the owner of a need, writes the intent in the sdlc-kit template, and creates it as a Linear document. Use it when someone wants to start an intent, to write down a problem and its outcome for business, product and engineering readers, or to start a new stage of work.
-argument-hint: "[name of the need]"
 allowed-tools: Read Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs *)
 ---
 

@@ -37,7 +37,7 @@ As an alternative to the marketplace, upload the plugin to Cowork as a package.
 
 A stage of work starts with an intent and continues with a spec. This is the flow from a need to an agreed spec:
 
-1. Run `/sdlc-kit:intent <name of the need>`. Claude asks who owns the intent and which Linear team or project gets the document.
+1. Run `/sdlc-kit:intent`. Claude asks who owns the intent and which Linear team or project gets the document.
 2. Answer the interview, one section at a time. Claude asks about the problem, who has it, what changes for them, and what is out of scope. Then it asks about the affected users and systems, the constraints, and what nobody knows yet. Say "unknown" when you do not know. The unknown becomes an open problem.
 3. Claude writes the intent, runs the lint of the plugin on it, and creates the Linear document `Intent: <name>`. It posts a first comment that lists the open problems and @mentions the people who can answer them.
 4. Discuss each open problem in its comment thread on the Linear document. Resolve the thread when the decision is made. When every open problem has an answer, or goes to the spec, set the `Status:` line of the intent to `agreed`.
@@ -49,7 +49,7 @@ Every document and every comment follows the writing rules of the plugin, based 
 
 ### All commands
 
-- `/sdlc-kit:intent [name of the need]` interviews the owner, writes the intent and creates it as a Linear document.
+- `/sdlc-kit:intent` interviews the owner, writes the intent and creates it as a Linear document.
 - `/sdlc-kit:spec <Linear URL of the intent>` turns an agreed intent into a spec and creates it as a Linear document.
 
 The plugin also holds the `writing` skill. It has no command. Claude reads it before it writes a document or a comment.
