@@ -14,6 +14,7 @@ export const TEMPLATES = {
     implements: false,
     owner: true,
     linear: true,
+    exported: true,
     sections: [
       { title: 'Executive summary', maxBullets: 5 },
       { title: 'Problem' },
@@ -30,6 +31,7 @@ export const TEMPLATES = {
     implements: true,
     owner: true,
     linear: false,
+    exported: true,
     sections: [
       { title: 'Terms' },
       { title: 'Scope' },
@@ -50,6 +52,7 @@ export const TEMPLATES = {
     implements: true,
     owner: false,
     linear: false,
+    exported: false,
     sections: [
       { title: 'Summary' },
       { title: 'Work order' },
@@ -229,6 +232,7 @@ const NOT_VERBS_ING = new Set([
 const ING_TECHNICAL_NAMES = new Set(['operating system', 'logging level']);
 
 const MAX_SENTENCE_WORDS = 25;
+const EXPORTED_LINE = /^\s*Exported:[ \t]+https?:\/\/\S+[ \t]+·[ \t]+\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})[ \t]*$/;
 
 const FENCE = /^\s*(`{3,}|~{3,})/;
 const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
@@ -705,6 +709,14 @@ function checkStructure(doc, type, add) {
     } else if (!/^<[^>]*>$/.test(value) && value !== 'pending' && !/^https?:\/\/\S+$/.test(value)) {
       add(found.no, 'structure-linear', 'the "Linear:" line must hold the document URL, or "pending" before the first save');
     }
+  }
+
+  // Only a file exported from Linear has this line, so it is optional.
+  const exported = header.find((h) => /^\s*Exported:/.test(h.text));
+  if (exported && !template.exported) {
+    add(exported.no, 'structure-exported', `the ${type} header does not take an "Exported:" line`);
+  } else if (exported && !EXPORTED_LINE.test(exported.text)) {
+    add(exported.no, 'structure-exported', 'write the line as "Exported: <document URL> · <ISO time>"');
   }
 
   const expected = template.sections.map((s) => s.title.toLowerCase());

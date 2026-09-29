@@ -291,6 +291,30 @@ describe('structure', () => {
     assert.deepEqual(rules(spec.replace(SECTION_TEXT['Open decisions'], table), 'spec'), ['structure-numbered-items']);
   });
 
+  const EXPORTED = `Exported: ${INTENT_URL} · 2026-09-29T00:00:00Z`;
+
+  test('an intent with an Exported line after the Linear line passes', () => {
+    assert.deepEqual(rules(intent.replace('Linear: pending', `Linear: ${INTENT_URL}\n${EXPORTED}`), 'intent'), []);
+  });
+
+  test('a spec with an Exported line after the Implements line passes', () => {
+    assert.deepEqual(rules(spec.replace(/^(Implements: .*)$/m, `$1\n${EXPORTED}`), 'spec'), []);
+  });
+
+  for (const line of ['Exported: yesterday', `Exported: ${INTENT_URL}`, 'Exported: 2026-09-29T00:00:00Z', `Exported: ${INTENT_URL} · 29.09.2026`]) {
+    test(`an Exported line in another form fails: ${line}`, () => {
+      assert.deepEqual(rules(intent.replace('Linear: pending', `Linear: pending\n${line}`), 'intent'), ['structure-exported']);
+    });
+  }
+
+  test('a plan with an Exported line fails', () => {
+    assert.deepEqual(rules(PLAN.replace(/^(Implements: .*)$/m, `$1\n${EXPORTED}`), 'plan'), ['structure-exported']);
+  });
+
+  test('an Exported line below the first section is not a header field', () => {
+    assert.deepEqual(rules(intent.replace('## 2. Problem\n', '## 2. Problem\nExported: soon.\n'), 'intent'), []);
+  });
+
   test('an executive summary with six bullets fails', () => {
     const six = Array.from({ length: 6 }, (_, i) => `- Point ${i + 1}.`).join('\n');
     const text = intent.replace(SECTION_TEXT['Executive summary'], six);

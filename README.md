@@ -45,11 +45,11 @@ A stage of work starts with an intent and continues with a spec. This is the flo
 6. Claude does its research read-only, in the repository you name and in external sources. It asks you only about the forks that the research cannot settle. Then it creates the Linear document `Spec: <name>`, linked to the intent, with one comment per open decision.
 7. Settle each open decision in its comment thread. When no open decision blocks the plan, set the `Status:` line of the spec to `agreed`.
 
-Every document and every comment follows the writing rules of the plugin, based on Simplified Technical English. The lint checks the rules that a script can check. Claude runs it on each draft before it saves it and never saves a draft that fails. After three failed attempts, Claude gives you the outstanding findings and the path of the draft.
+Every document and every comment follows the writing rules of the plugin, based on Simplified Technical English. The lint checks the rules that a script can check. The writing judge checks the other rules, in a fresh context with no access to the conversation. Claude runs the lint on each draft before it saves it. Then the gate of the plugin runs the lint and the judge on every save of an intent or a spec to Linear. It also runs them on every push of a stage document. The gate stops the save or the push of a document that fails. After three failed attempts, Claude gives you the outstanding findings and the path of the draft.
 
 ### All commands
 
 - `/sdlc-kit:intent` interviews the owner, writes the intent and creates it as a Linear document.
 - `/sdlc-kit:spec <Linear URL of the intent>` turns an agreed intent into a spec and creates it as a Linear document.
 
-The plugin also holds the `writing` skill. It has no command. Claude reads it before it writes a document or a comment.
+The plugin also holds the `writing` skill and the `writing-judge` agent. Neither has a command. Claude reads the skill before it writes a document or a comment, and the gate runs the agent.

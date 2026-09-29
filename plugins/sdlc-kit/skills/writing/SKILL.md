@@ -163,7 +163,7 @@ The rules fall into tiers. Each document type must clear the tiers that the tabl
 | Mechanical (STE) | The STE rules listed above: one word per thing, one part of speech, short common words, sentence length, active voice, simple tenses, no -ing forms, articles kept, noun clusters. Plus: no em-dashes, no banned words, no volatile counts. | yes | yes | yes | lint for em-dash, banned words, sentence length, present perfect and -ing forms; judge for the rest |
 | Altitude and audience | Intent: problem and outcome, no solution internals. Spec: a non-engineer can follow every section, which is what STE is for; engineering detail goes to the plan. Plan: a fresh-context agent can implement from it alone; every requirement traces to a file and a test. | yes | yes | yes, plus the completeness test | judge |
 
-The judge does not exist yet. Until it exists, read the draft against the judge rules before each save.
+The judge is the agent `${CLAUDE_PLUGIN_ROOT}/agents/writing-judge.md`. The section "The gate" says when the lint and the judge run.
 
 ## Additions
 
@@ -209,6 +209,7 @@ Use `--type spec` or `--type plan` for the other documents. Use `--type prose` f
 The lint checks these rules:
 
 - Structure: the title line, the header fields, and the numbered template headings in order. The header fields are `Owner:`, `Status:` and `Linear:` for the intent, `Implements:`, `Owner:` and `Status:` for the spec, and `Implements:` for the plan. Linear has no status field for a document, so the `Status:` line is the status. Change it only when the owner says so.
+- Structure, header: an intent or a spec that comes from the export of a Linear document has one more line, `Exported: <document URL> · <ISO time>`. The line is optional, and the plan does not take it.
 - Structure, continued: required sections are not empty, and the executive summary has at most five bullets. In a section that the template numbers, every item has a number, or the section reads "None.".
 - Cross-references: the form above, and the target heading when the target is a local file. The form `section 7 of the spec` is a finding.
 - Em-dashes anywhere outside code.
@@ -223,6 +224,18 @@ The lint checks these rules:
 A line with only `<!-- lint-disable -->` starts a part that the lint skips, and a line with only `<!-- lint-enable -->` ends it. These markers work only with `--type prose`. A stage document cannot switch the lint off.
 
 The lint cannot find a volatile count, a synonym, a wrong part of speech or a wrong altitude. Check those yourself against the rules above. The regex checks can give a false positive. When the text is correct, keep it. Tell the owner which finding is wrong.
+
+## The gate
+
+The gate is a hook of the plugin. It runs on each call that publishes a stage document:
+
+- every save of an intent or a spec through the `save_document` tool of the Linear MCP server;
+- every `git push` that changes a markdown file under `.sdlc-kit/`.
+
+The gate runs the lint first. When the lint passes, the gate runs the judge in a fresh context. The judge gets the document and its type, and nothing else. The gate allows the call only on a PASS verdict. A denial names the lines that the lint found, or the findings of the judge. The retry rule of "What the lint checks" applies to a denial too. Fix what the denial names. Then repeat the save or the push.
+
+- The gate cannot read the document that a `patch` save produces, so it denies every `patch` save. Send the full document in `content`.
+- A local edit is not a publication. The gate does not run on a draft in a scratch file, or on a change to a checked-out file before the push.
 
 ## Boundaries
 
