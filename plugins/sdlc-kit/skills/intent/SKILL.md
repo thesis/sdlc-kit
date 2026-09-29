@@ -45,7 +45,9 @@ The intent says what problem exists, who has it, and what outcome we want. Its r
    - Use the title `Intent: <name>`.
    - Give the document exactly one parent: the team or the project that the owner named.
    - Put the draft in `content` as markdown.
-8. Replace `pending` on the `Linear:` line with the URL of the new document. Run the lint on the changed draft. Then save the document again with `save_document` and the `id` of the document.
+
+   The gate of the plugin runs on the save. When it denies the save, follow the retry rule of the writing skill.
+8. Replace `pending` on the `Linear:` line with the URL of the new document. Run the lint on the changed draft. Then save the document again with `save_document`, the `id` of the document and the full draft in `content`. The gate runs on this save too.
 9. Post a first comment on the document with the `save_comment` tool. Pass the `documentId` of the document. In the comment, list the open problems. Ask the named stakeholders for answers, with an @mention for each one. The comment follows the writing rules.
 10. Give the owner the URL of the document.
 

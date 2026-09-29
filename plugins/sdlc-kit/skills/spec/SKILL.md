@@ -47,6 +47,8 @@ The input is the Linear URL of the intent: $ARGUMENTS
    - Use the title `Spec: <name>`.
    - Give the document exactly one parent: the team or the project that the owner confirmed.
    - Put the draft in `content` as markdown.
+
+   The gate of the plugin runs on the save. When it denies the save, follow the retry rule of the writing skill.
 9. Post one comment for each open decision with the `save_comment` tool. Pass the `documentId` of the spec. Address each comment to the owner of the decision with an @mention. Each comment follows the writing rules.
 10. Give the owner the URL of the spec.
 
