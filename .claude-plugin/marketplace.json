@@ -1,0 +1,14 @@
+{
+  "name": "thesis-sdlc-kit",
+  "owner": {
+    "name": "Thesis"
+  },
+  "description": "Claude Code plugins for the AI SDLC at Thesis.",
+  "plugins": [
+    {
+      "name": "sdlc-kit",
+      "source": "./plugins/sdlc-kit",
+      "description": "Skills, templates and writing rules for the intent and the spec of a stage of work."
+    }
+  ]
+}
