@@ -579,7 +579,9 @@ function protectAbbreviations(s) {
 
 function checkSentenceLength(block, masked, add) {
   const text = protectAbbreviations(masked);
-  const ends = /[.!?]+["'”’)\]]*(?=\s|$)/g;
+  // A closing "**" or "_" after the full stop belongs to the sentence, so a
+  // bold lead such as "**Lead.** Next sentence." splits into two.
+  const ends = /[.!?]+["'”’)\]*_]*(?=\s|$)/g;
   let from = 0;
   const sentences = [];
   for (const m of text.matchAll(ends)) {

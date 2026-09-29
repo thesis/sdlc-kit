@@ -484,6 +484,10 @@ describe('sentence-length', () => {
     assert.equal(finding.line, 3);
   });
 
+  test('a bold lead and the sentence after it are two sentences', () => {
+    assert.deepEqual(rules(`- **${words(10).slice(0, -1)}.** ${words(20)}`), []);
+  });
+
   test('a long sentence in a list item fails', () => {
     assert.deepEqual(rules(`- ${words(26)}`), ['sentence-length']);
   });
