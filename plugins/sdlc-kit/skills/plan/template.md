@@ -11,23 +11,23 @@ Implements: spec.md @ <sha> · intent.md @ <sha>
 | --- | --- | --- |
 
 ## 3. Phases
-<!-- One subsection "### 3.N Phase N: <title>" per phase, in the order of the work order. Each phase holds the five subsections below, in this order. -->
+<!-- One subsection "### 3.N Phase N: <title>" per phase, in the order of the work order. Each phase holds the five subsections below, numbered 3.N.1 to 3.N.5, in this order. A subsection that a phase adds takes the next number. -->
 
 ### 3.1 Phase 1: <title>
 
-#### Files that change
+#### 3.1.1 Files that change
 <!-- One line per file: the path from the repository root, then new, changed or deleted, then what changes. -->
 
-#### Behavior
+#### 3.1.2 Behavior
 <!-- What the phase makes the code do, with a cross-reference to each section of the spec that it implements. -->
 
-#### Tests
+#### 3.1.3 Tests
 <!-- One line per test: its name, its file, and the claim that it proves. -->
 
-#### Commands
+#### 3.1.4 Commands
 <!-- One line per command: the command, run from the repository root, and its expected result. -->
 
-#### Definition of done
+#### 3.1.5 Definition of done
 <!-- The merge gate. Each item is a check that a script can do, such as a command and its exit code. -->
 
 ## 4. Test matrix
@@ -40,9 +40,9 @@ Implements: spec.md @ <sha> · intent.md @ <sha>
 <!-- Each blocker is a spec gap that needs a human. Name the section of the spec. Write "None." when no blocker is left. -->
 
 ## 7. What changed
-<!-- Empty in the first plan. During the build, one entry per unexpected finding that changes the plan, in this form:
+<!-- Empty in the first plan. During the build, one entry per unexpected finding that changes the plan, numbered 7.1, 7.2 and so on, in this form:
 
-### <YYYY-MM-DD> · Phase <N>
+### 7.1 <YYYY-MM-DD> · Phase <N>
 What changed in the plan, and why.
 -->
 

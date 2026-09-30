@@ -74,7 +74,7 @@ function fillPlan() {
   return text
     .split('\n')
     .flatMap((line) => {
-      const h = line.match(/^#{2,4} (?:\d+\. )?(.+)$/);
+      const h = line.match(/^#{2,4} (?:\d+(?:\.\d+)*\.? )?(.+)$/);
       if (!h || line.startsWith('### ') || ['Work order', 'Phases', 'What changed'].includes(h[1])) return [line];
       return [line, PLAN_TEXT[h[1]] ?? 'The text of this section.'];
     })
@@ -94,15 +94,15 @@ Each deliverable lands in one phase.
 
 ## 3. Phases
 ### 3.1 Phase 1: The deploy script
-#### Files that change
+#### 3.1.1 Files that change
 The deploy script changes.
-#### Behavior
+#### 3.1.2 Behavior
 The script deploys the vault.
-#### Tests
+#### 3.1.3 Tests
 One test proves the deploy.
-#### Commands
+#### 3.1.4 Commands
 Run the tests.
-#### Definition of done
+#### 3.1.5 Definition of done
 All tests pass.
 
 ## 4. Test matrix
@@ -149,7 +149,7 @@ describe('templates', () => {
     const titles = templateText('plan')
       .split('\n')
       .filter((l) => l.startsWith('#### '))
-      .map((l) => l.slice(5));
+      .map((l) => l.replace(/^#### 3\.1\.\d+ /, ''));
     assert.deepEqual(titles, TEMPLATES.plan.sections.find((s) => s.subsections).subsections);
   });
 
@@ -313,20 +313,32 @@ describe('structure', () => {
   });
 
   test('a phase with a missing subsection fails', () => {
-    assert.deepEqual(rules(PLAN.replace('#### Tests\n', ''), 'plan'), ['structure-phase-sections']);
-  });
-
-  test('a phase with its subsections out of order fails', () => {
-    const text = PLAN.replace('#### Tests', '#### TMP').replace('#### Commands', '#### Tests').replace('#### TMP', '#### Commands');
+    const text = PLAN.replace('#### 3.1.3 Tests\nOne test proves the deploy.\n', '').replace('3.1.4 Commands', '3.1.3 Commands').replace('3.1.5 Definition', '3.1.4 Definition');
     assert.deepEqual(rules(text, 'plan'), ['structure-phase-sections']);
   });
 
-  test('a phase with an extra subsection passes', () => {
-    assert.deepEqual(rules(PLAN.replace('#### Tests\n', '#### Tests\n#### Fixtures\nOne fixture.\n'), 'plan'), []);
+  test('a phase with its subsections out of order fails', () => {
+    const text = PLAN.replace('3.1.3 Tests', '3.1.3 Commands').replace('3.1.4 Commands', '3.1.4 Tests');
+    assert.deepEqual(rules(text, 'plan'), ['structure-phase-sections']);
+  });
+
+  test('a subsection with no number or a wrong number fails', () => {
+    assert.deepEqual(rules(PLAN.replace('#### 3.1.3 Tests', '#### Tests'), 'plan'), ['structure-phase-sections']);
+    assert.deepEqual(rules(PLAN.replace('#### 3.1.3 Tests', '#### 3.1.4 Tests'), 'plan'), ['structure-phase-sections']);
+  });
+
+  test('a phase with an extra numbered subsection passes', () => {
+    const text = PLAN.replace('#### 3.1.3 Tests\n', '#### 3.1.3 Tests\n#### 3.1.4 Fixtures\nOne fixture.\n').replace('3.1.4 Commands', '3.1.5 Commands').replace('3.1.5 Definition', '3.1.6 Definition');
+    assert.deepEqual(rules(text, 'plan'), []);
+  });
+
+  test('a "7. What changed" entry with no number fails', () => {
+    const entry = '\n## 7. What changed\n### 2026-10-02 · Phase 1\nThe script reads the address from the environment.\n';
+    assert.deepEqual(rules(`${PLAN}${entry}`, 'plan'), ['structure-numbered-items']);
   });
 
   test('a "7. What changed" entry in the template form passes', () => {
-    const entry = '\n## 7. What changed\n### 2026-10-02 · Phase 1\nThe script reads the address from the environment, because the deploy host has no config file.\n';
+    const entry = '\n## 7. What changed\n### 7.1 2026-10-02 · Phase 1\nThe script reads the address from the environment, because the deploy host has no config file.\n';
     assert.deepEqual(rules(`${PLAN}${entry}`, 'plan'), []);
   });
 

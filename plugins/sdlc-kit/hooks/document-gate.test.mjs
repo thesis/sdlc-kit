@@ -69,15 +69,15 @@ The export lands in one phase.
 
 ## 3. Phases
 ### 3.1 Phase 1: The report script
-#### Files that change
+#### 3.1.1 Files that change
 The report script is new.
-#### Behavior
+#### 3.1.2 Behavior
 The script writes the report.
-#### Tests
+#### 3.1.3 Tests
 One test proves the report.
-#### Commands
+#### 3.1.4 Commands
 Run npm test. It exits with 0.
-#### Definition of done
+#### 3.1.5 Definition of done
 npm test exits with 0.
 
 ## 4. Test matrix
