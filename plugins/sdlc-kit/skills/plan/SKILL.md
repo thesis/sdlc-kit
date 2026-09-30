@@ -85,7 +85,8 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
     ```
 
     When the lint lists findings, follow the retry rule above.
-27. Run the completeness check with the Agent tool. Spawn a subagent of the type `general-purpose`, never a fork, with the prompt below and nothing else. Replace the two paths. The subagent has a fresh context, so it sees only the files.
+27. Read the plan again against the writing rules. Fix what you find. Then run the lint again.
+28. Run the completeness check with the Agent tool. Spawn a subagent of the type `general-purpose`, never a fork, with the prompt below and nothing else. Replace the two paths. The subagent has a fresh context, so it sees only the files.
 
     ```
     You test one plan for completeness. An agent that builds from the plan has a fresh context: it has the plan, the two documents that the plan implements and the repository, and nothing else. List each item that such an agent cannot determine. Zero items is the pass.
@@ -109,10 +110,10 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
     The verdict is FAIL when an item exists and PASS when the list is empty.
     ```
 
-28. When the verdict lists items, fix the plan. Then run the check again. Do not do more than three runs. After the third failed run, give the engineer the outstanding items and the path of the plan. Then wait for the engineer to decide.
-29. Commit the plan. Then push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule above.
-30. Mark the pull request ready with `gh pr ready`.
-31. Give the owner the URL of the pull request.
+29. When the verdict lists items, fix the plan. Then run the check again. Do not do more than three runs. After the third failed run, give the engineer the outstanding items and the path of the plan. Then wait for the engineer to decide.
+30. Commit the plan. Then push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule above.
+31. Mark the pull request ready with `gh pr ready`.
+32. Give the owner the URL of the pull request.
 
 ## During the build
 
