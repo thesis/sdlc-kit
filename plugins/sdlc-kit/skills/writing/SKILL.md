@@ -59,35 +59,73 @@ state. Replace the word with the fact.
 | facilitate | "let", "help", "allow" |
 | robust | say what it survives |
 | seamless, holistic, elegant | cut the word |
-| crucial, vital, key, critical | say what fails without it |
+| crucial, vital, key, critical, paramount | say what fails without it |
 | delve, dive into, deep dive | "read", "study", "look at" |
 | landscape, ecosystem, realm, space | name the actual set of things |
 | journey, story, narrative | name the sequence of events |
 | unlock, empower, elevate, supercharge | say what the change makes possible |
 | streamline | name the step you removed |
-| testament, cornerstone, backbone, tapestry | cut the sentence, state the fact |
+| foster, harness, embark | name the action: "start", "use", "run" |
+| cutting-edge, transformative, game changer, paradigm shift, ever-evolving | say what changed, and by how much |
+| multifaceted, intricate, meticulous | name the parts, or say what you checked |
+| testament, cornerstone, backbone, tapestry, beacon | cut the sentence, state the fact |
 
 The table cannot name every word. Use this test on any word you are
 about to write:
 
 1. Does the word name a thing in the code, the spec, or the user's own
-   message? Keep it.
+   message (a private key, a token unlock, a Critical severity, a user
+   story, a test harness)? Keep it.
 2. Does the word stand in for a fact you did not state? Delete the word
    and state the fact.
 3. Does the word only add weight or praise? Delete it.
 
+Delete these adverbs: literally, honestly, truly, actually,
+fundamentally, importantly, crucially, inherently, simply. Delete these
+phrases and state the fact: "it is worth noting", "it is important to
+note", "when it comes to", "in terms of", "with regard to", "the reality
+is", "the truth is", "at the end of the day", "going forward". Write
+"to", not "in order to". Write "can", not "has the ability to".
+
 ## Banned sentence patterns
 
-- Negate, then elevate: "this is not just X, it is Y". State Y alone.
-  A plain contrast is fine: "every job, not only the first".
+- Negate, then elevate: "this is not just X, it is Y", "the question is
+  not X, it is Y", "Not X. Not Y. Z." State Y alone. A plain contrast is
+  fine: "every job, not only the first".
 - Three for rhythm: three adjectives or three clauses where one carries
-  the meaning. Keep the one that carries it.
-- The false summary: "In essence", "At its core", "Simply put", "The
-  key insight is". Delete the opener. Keep the sentence.
+  the meaning. Keep the one that carries it. The same for stacked
+  fragments: "X. And Y. And Z." Write complete sentences.
+- The false opener: "In essence", "At its core", "Simply put", "Here is
+  the thing", "Let me be clear", "To be honest", "What most people
+  miss", "Think about it:", and a question that the next sentence
+  answers. Delete the opener. Keep the sentence.
+- The colon reveal: a noun phrase, a colon, then the point: "The detail
+  that makes it work: a second agent grades it." Write a plain sentence.
+  A colon introduces a list, a label or a quote.
+- Telling the reader what to notice: "The key point is", "As you can
+  see", "This distinction matters", "In other words", "That last part
+  matters more than it sounds". Delete the aside. When the point is not
+  clear without it, add the fact that makes it clear.
+- Importance puffery: "marks a pivotal moment", "plays a vital role",
+  "underscores the significance", "solidifies its position". State the
+  fact. The reader decides whether it matters.
+- Fake-strong verbs: "serves as a central hub for", "acts as",
+  "represents", "the decision emerged". Write "is", "has" or the action
+  itself: "the app tracks sponsors and due dates". Do not give a thing a
+  verb that only a person does: a number does not "tell a story", a
+  design does not "want".
 - Praise for your own work: "clean", "elegant", "careful", "powerful".
   The reader judges the work.
 - The closing flourish: a last sentence that restates the change in
-  bigger words. Stop at the last fact.
+  bigger words, a final metaphor or aphorism, or "In conclusion",
+  "Ultimately", "Overall". Stop at the last fact or the next action.
+- The portable sentence: a sentence that fits another product, team or
+  system with no change says nothing about this one. Replace it with a
+  fact, a mechanism or a consequence of this subject, or delete it.
+- The abstraction: "the change improved efficiency". Write the
+  measurement: "the change cut the deploy time from 40 minutes to 4",
+  with its source. A measurement tied to one commit is not a volatile
+  count.
 
 ## Sentence rules
 
@@ -167,7 +205,7 @@ A stage document and a comment are durable records. The reader has no access to 
 - **No meta-context.** The text describes its subject, never the process that produced it. Do not write `as discussed`, `as planned`, `based on the review`, `per your feedback`, `phase 1 of the plan` or `first attempt`. A decision lives in the document text, not in a thread.
 - **The end state, not the history.** A document says what the system does, not `we changed X to Y`. Do not describe earlier drafts, renames or the order in which the text grew. The "What changed" section of the plan is the one place for a log.
 - **The standalone test.** Before you publish, read the text with no other context. When it does not stand on its own as a statement about the subject, rewrite it.
-- **Back a claim with its proof.** A claim in a document or a comment points at its evidence: a link, a file, a command and its output.
+- **Back a claim with its proof.** A claim in a document or a comment points at its evidence: a link, a file, a command and its output. Do not write "experts agree", "studies show" or "it is widely known". Name the source or cut the claim.
 
 ## Comments
 
