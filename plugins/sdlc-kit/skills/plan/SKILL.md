@@ -7,7 +7,7 @@ allowed-tools: Read Glob Grep Agent Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/*)
 
 # Plan
 
-The plan says how agents build what the spec describes. Its first readers are the agents that build. Engineers read "1. Summary" and "2. Work order" of the plan for the big picture. The plan holds files, tests, commands and checks.
+The plan says how agents build what the spec describes. Its first readers are the agents that build. Engineers read "1. Summary" and "2. Work order" of the plan for the big picture. The plan holds files, tests, commands and checks. An agent with a fresh context can build from the plan, the spec and the intent alone. Every requirement of the spec traces to a file and a test.
 
 The output is one branch and one draft pull request in the target repository, the repository where the feature lands. The pull request adds the stage directory `.sdlc-kit/YYYY-MM-<slug>/` with `intent.md`, `spec.md` and `plan.md`. The output never goes to thesis/sdlc-kit.
 
@@ -24,6 +24,10 @@ The input is the Linear URL of the spec: $ARGUMENTS
 
 - Change a stage file only with a commit and a plain `git push`. Do not write repository contents through `gh api`, `curl` or any other route. The gate sees only the push.
 - The branch name, the commit messages and the pull request description follow the rules of the target repository. These rules are in files such as its CLAUDE.md and its pull request template. Write the pull request description with the writing skill loaded. No hook of this plugin judges it.
+
+## Retry
+
+When the lint lists findings, or the gate denies a save or a push, fix the lines or the findings that it names. Then run the lint again, or repeat the call. Stop after three failed attempts. Give the owner or the engineer the outstanding findings and the path of the file. Then wait for their decision. A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
 
 ## Procedure
 
@@ -46,7 +50,7 @@ The input is the Linear URL of the spec: $ARGUMENTS
 12. Run `git fetch`.
 13. Create the branch from the default branch of the remote. The name follows the rules of the target repository.
 14. In the content of each document, set the `Status:` line to `Status: frozen`. Change nothing else.
-15. Save each document with the `save_document` tool: the `id` of the document and the full content in `content`. The gate of the plugin runs on each save. When it denies a save, follow the retry rule of the writing skill.
+15. Save each document with the `save_document` tool: the `id` of the document and the full content in `content`. The gate of the plugin runs on each save. When it denies a save, follow the retry rule above.
 16. Export each document into the stage directory, the intent to `intent.md` and the spec to `spec.md`:
 
     ```
@@ -55,7 +59,7 @@ The input is the Linear URL of the spec: $ARGUMENTS
 
 17. Run the lint on both files, with `--type intent` and `--type spec`. Do not edit the agreed text. When the lint lists findings, stop. Give the owner the findings and the path of each file. Then wait for the owner to decide.
 18. Commit `intent.md` and `spec.md` as the first commit of the branch.
-19. Push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule of the writing skill.
+19. Push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule above.
 20. Open the pull request as a draft with `gh pr create --draft`.
 21. Post a comment with the URL of the pull request on each Linear document, with the `save_comment` tool. Each comment follows the writing rules.
 22. Survey the repository read-only, for every deliverable in "7. Deliverables" of the spec. Find the files, the tests and the commands that each deliverable touches.
@@ -80,7 +84,7 @@ The input is the Linear URL of the spec: $ARGUMENTS
     node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs --type plan <stage directory>/plan.md
     ```
 
-    When the lint lists findings, follow the retry rule of the writing skill.
+    When the lint lists findings, follow the retry rule above.
 27. Run the completeness judge with the Agent tool. Use the agent `sdlc-kit:completeness-judge`. Never run it as a fork.
 28. Give the judge a prompt with two lines only:
     - the absolute path of the stage directory;
@@ -88,7 +92,7 @@ The input is the Linear URL of the spec: $ARGUMENTS
 
     Add no other text, because the judge must see only the files.
 29. When the verdict lists items, fix the plan. Then run the judge again. Do not do more than three judge runs. After the third failed run, give the engineer the outstanding items and the path of the plan. Then wait for the engineer to decide.
-30. Commit the plan. Then push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule of the writing skill.
+30. Commit the plan. Then push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule above.
 31. Mark the pull request ready with `gh pr ready`.
 32. Give the owner the URL of the pull request.
 

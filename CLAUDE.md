@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `plugins/` holds one plugin per directory. `plugins/sdlc-kit/` is the only plugin today.
 - A plugin holds `.claude-plugin/plugin.json`, `.mcp.json`, `skills/<name>/SKILL.md`, `agents/`, `hooks/` and `scripts/`.
 - `skills/intent/`, `skills/spec/` and `skills/plan/` each hold a `SKILL.md` with the procedure and a `template.md` with the numbered headings of the document.
-- `skills/writing/SKILL.md` holds the writing rules and describes what the lint checks. It is not user-invocable.
+- `skills/writing/SKILL.md` holds the writing rules and nothing else: no lifecycle text and no description of the checks. It is not user-invocable.
 - `agents/writing-judge.md` is the writing judge: its rubric and its verdict format. It names the writing rules by their section titles and does not copy them.
 - `agents/completeness-judge.md` is the completeness judge of the plan: its classes of items and its verdict format. It has the tools `Read`, `Glob` and `Grep` only.
 - `hooks/hooks.json` wires the gate, `hooks/document-gate.mjs`, to two PreToolUse matchers: `save_document` on any MCP server, and `Bash`. `hooks/document-gate.test.mjs` holds its tests.
@@ -40,7 +40,7 @@ node plugins/sdlc-kit/scripts/lint.mjs --type prose README.md CLAUDE.md
 - The tests of the gate make no model call. They put a fake `claude` script on `SDLC_KIT_CLAUDE_BIN`, and they make their git repositories in the temp directory.
 - Do not pass a directory to `node --test`. On Node 22 it fails with `MODULE_NOT_FOUND`. Use the glob.
 - `claude plugin validate` checks `plugin.json`, `hooks/hooks.json` and the `skills`, `agents` and `commands` directories. It does not read the skill frontmatter. Run `plugin details` to see the skills, the agents, the hooks and the MCP server that load.
-- The section "What the lint checks" of the writing skill has the types of the lint, its output form and its rules. Beyond that, `--json` prints the findings as an array, and the exit code 2 means a usage error.
+- The lint takes `--type intent|spec|plan|prose`. The `prose` type runs the mechanical checks and skips the structure checks. Each finding is one line, `path:line: rule-id: message`. The exit code is 1 with a finding, 0 when clean and 2 on a usage error. `--json` prints the findings as an array. A line with only `<!-- lint-disable -->` starts a part that the lint skips, and `<!-- lint-enable -->` ends it; the markers work only with `--type prose`.
 
 ## How the parts fit
 

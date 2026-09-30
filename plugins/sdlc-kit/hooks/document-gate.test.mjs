@@ -108,7 +108,7 @@ process.stdin.on('end', () => {
   }
   const result = (structured_output, extra = {}) =>
     console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, num_turns: 2, total_cost_usd: 0.01, result: JSON.stringify(structured_output), structured_output, ...extra }));
-  const finding = { section: '3. Proposed outcome', quote: 'the report', rule: 'Tiers: altitude', message: 'Name the outcome.' };
+  const finding = { section: '3. Proposed outcome', quote: 'the report', rule: 'Altitude', message: 'Name the outcome.' };
   switch (process.env.FAKE_MODE) {
     case 'pass': return result({ verdict: 'PASS', findings: [] });
     case 'fail': return result({ verdict: 'FAIL', findings: [finding] });
@@ -480,7 +480,7 @@ describe('gate', () => {
     assert.equal(
       result.reason,
       'document-gate: the writing judge failed Intent: Weekly export:\n' +
-        '3. Proposed outcome: "the report": Tiers: altitude: Name the outcome.\n' +
+        '3. Proposed outcome: "the report": Altitude: Name the outcome.\n' +
         'Fix each finding. Then repeat the call.',
     );
   });
