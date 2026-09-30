@@ -44,6 +44,8 @@ A stage of work starts with an intent, continues with a spec and ends with the b
 5. Run `/sdlc-kit:plan <Linear URL of the spec>` in a checkout of the repository where the feature lands. The command stops when the spec is not agreed, or when a resolved thread has no outcome in the text. Accept or change the name of the stage directory, `.sdlc-kit/YYYY-MM-<slug>/`. Answer the questions about the repository, such as the CI gates and stacked pull requests. You get a pull request with the frozen intent and spec and the plan, ready for review. Both Linear documents get its link. From here, git holds the intent and the spec.
 6. Review the shape of the plan, not each line, and merge it. Build each phase in its own pull request. Edit the plan in a code pull request only when the work finds something unexpected that changes the plan. When the last phase merges, the stage is done.
 
+When comments pile up on an intent, a spec or a plan pull request, run `/sdlc-kit:steward <URL>`. Pass the URL of the Linear document or of the pull request. One run works every open thread at that moment and stops. Claude makes the copy edits, answers the questions with a source, and leaves each decision to the owner.
+
 Every document and every comment follows the writing rules of the plugin, based on Simplified Technical English. A save to Linear or a push of a stage document that breaks the rules is denied with the findings. Claude fixes the text and retries. After three failed attempts, Claude gives you the findings and the path of the draft.
 
 ### All commands
@@ -51,5 +53,6 @@ Every document and every comment follows the writing rules of the plugin, based 
 - `/sdlc-kit:intent` interviews the owner, writes the intent and creates it as a Linear document.
 - `/sdlc-kit:spec <Linear URL of the intent>` turns an agreed intent into a spec and creates it as a Linear document.
 - `/sdlc-kit:plan <Linear URL of the spec>` freezes the agreed intent and spec, exports them to the repository and writes the plan in a draft pull request.
+- `/sdlc-kit:steward <Linear URL of an intent or a spec | GitHub URL of a pull request>` works the open comment threads and leaves each decision to the owner.
 
 The plugin also holds the `writing` skill and the `writing-judge` agent. Neither has a command. Claude reads the skill before it writes a document or a comment, and the gate runs the agent.

@@ -14,6 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `plugins/` holds one plugin per directory. `plugins/sdlc-kit/` is the only plugin today.
 - A plugin holds `.claude-plugin/plugin.json`, `.mcp.json`, `skills/<name>/SKILL.md`, `agents/`, `hooks/` and `scripts/`.
 - `skills/intent/`, `skills/spec/` and `skills/plan/` each hold a `SKILL.md` with the procedure and a `template.md` with the numbered headings of the document.
+- `skills/steward/SKILL.md` holds the steward: it works the open threads on a Linear document or on a pull request.
 - `skills/writing/SKILL.md` holds the writing rules and nothing else: no lifecycle text and no description of the checks. It is not user-invocable.
 - `agents/writing-judge.md` is the writing judge: its rubric and its verdict format. It names the writing rules by their section titles and does not copy them.
 - `hooks/hooks.json` wires the gate, `hooks/document-gate.mjs`, to two PreToolUse matchers: `save_document` on any MCP server, and `Bash`. `hooks/document-gate.test.mjs` holds its tests.
@@ -44,7 +45,7 @@ node plugins/sdlc-kit/scripts/lint.mjs --type prose README.md CLAUDE.md
 ## How the parts fit
 
 - The `TEMPLATES` object in `lint.mjs` holds the headings, the header fields and the numbered sections of each document type. It must match `skills/<type>/template.md`. A test fills each template the way the skills do and lints it. A change to one side fails the tests until the other side follows.
-- The intent and spec skills call the lint in their procedure, and their `allowed-tools` line permits only that command. The `allowed-tools` line of the plan skill permits `Read`, `Glob`, `Grep`, `Agent` and the scripts of the plugin. It permits no git command, no `gh` command and no MCP tool. The gate runs the lint again on each save of an intent or a spec, and on each push of a stage document. A Linear document with a `Plan:` title passes the gate, because the plan lives only in git.
+- The intent and spec skills call the lint in their procedure, and their `allowed-tools` line permits only that command. The `allowed-tools` line of the plan skill permits `Read`, `Glob`, `Grep`, `Agent` and the scripts of the plugin. It permits no git command, no `gh` command and no MCP tool. The `allowed-tools` line of the steward skill is the same, with no `Agent`. The gate runs the lint again on each save of an intent or a spec, and on each push of a stage document. A Linear document with a `Plan:` title passes the gate, because the plan lives only in git.
 - The gate imports `lintText` from `lint.mjs`. A lint finding denies the call with no model call.
 - The lint and the gate remove the `<linear-comment>` anchors of Linear before they read a document. So a skill can lint and save the content that `get_document` returned, with its anchors in place.
 - The gate composes the judge for each run. It passes the frontmatter and body of `agents/writing-judge.md`, then the body of `skills/writing/SKILL.md`, to a headless `claude -p` with `--agents`. The run has `--setting-sources ""` and starts in the temp directory, so it loads no CLAUDE.md, no memory and no git history.
@@ -58,6 +59,7 @@ node plugins/sdlc-kit/scripts/lint.mjs --type prose README.md CLAUDE.md
 - The plan skill runs its completeness check with the Agent tool. The subagent is `general-purpose`, never a fork, and gets the rubric inline from the skill, so it has a fresh context. The gate does not run it. The time of the check grows with the repository and has no bound. The gate budget must cover the writing judge of every document in a push.
 - `github.mjs` wraps `gh api graphql`. It reads threads and posts replies. It never pushes, never resolves a thread and never writes repository contents. It passes each value to `gh` as a GraphQL variable, never inside the text of the query.
 - `SDLC_KIT_GH_BIN` replaces the `gh` binary of `github.mjs`. The tests of `github.mjs` put a fake `gh` script there. A `gh` failure is an error with the stderr of `gh`, never an empty list of threads.
+- The steward pushes its edits with a plain `git push`, so the gate judges them. Its replies go through `save_comment` or `github.mjs`, and no gate runs on them.
 - The steward and the feedback skill are not in the tree. Do not refer to a command that does not exist yet.
 
 ## Writing rules for this repository

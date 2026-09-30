@@ -119,4 +119,5 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
 - Each phase lands in its own pull request.
 - A code pull request edits the plan only when the work found something unexpected that changes the plan itself.
 - Such an edit is an entry in "7. What changed", in the form of the template, and the correction to the phase, the spec or the intent. The gate judges the changed documents on the push.
+- Run `/sdlc-kit:steward <URL of the pull request>` to work the review threads on a pull request. The steward makes the copy edits and gives answers to questions. It leaves each decision to the owner.
 - When the last phase merges, the stage is done. Nothing in it changes again. A new need starts a new intent.
