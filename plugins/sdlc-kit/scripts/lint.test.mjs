@@ -203,6 +203,14 @@ describe('structure', () => {
     assert.ok(rules(intent.replace('# Intent:', '# Idea:'), 'intent').includes('structure-title'));
   });
 
+  test('the comment anchors of Linear do not count', () => {
+    const anchored = intent
+      .replace('## 2. Problem', '## 2. <linear-comment id="a1" resolved="true">Problem</linear-comment>')
+      .replace('Ana Nowak', '<linear-comment id="a2" resolved="false">Ana Nowak</linear-comment>');
+    assert.notEqual(anchored, intent);
+    assert.deepEqual(rules(anchored, 'intent'), rules(intent, 'intent'));
+  });
+
   test('a missing status fails', () => {
     assert.ok(rules(intent.replace('Status: in review', 'Phase: one'), 'intent').includes('structure-status'));
   });

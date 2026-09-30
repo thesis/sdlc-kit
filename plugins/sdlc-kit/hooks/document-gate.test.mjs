@@ -474,6 +474,12 @@ describe('gate', () => {
     assert.equal(gate(INTENT, { type: 'intent', name: 'x', env: judgeEnv('pass') }).decision, 'allow');
   });
 
+  test('the comment anchors of Linear are removed before the lint and the judge', () => {
+    const anchored = INTENT.replace('## 1. Executive summary', '## 1. <linear-comment id="a1" resolved="true">Executive summary</linear-comment>');
+    assert.notEqual(anchored, INTENT);
+    assert.equal(gate(anchored, { type: 'intent', name: 'x', env: judgeEnv('pass') }).decision, 'allow');
+  });
+
   test('a FAIL verdict denies with one line per finding', () => {
     const result = gate(INTENT, { type: 'intent', name: 'Intent: Weekly export', env: judgeEnv('fail') });
     assert.equal(result.decision, 'deny');
