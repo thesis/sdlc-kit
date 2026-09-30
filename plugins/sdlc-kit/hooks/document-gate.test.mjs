@@ -63,11 +63,22 @@ Implements: spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8
 The export lands in one phase.
 
 ## 2. Work order
-Phase 1 merges first.
+| Phase | Depends on | Merge gate |
+| --- | --- | --- |
+| 1. The report script | None | npm test exits with 0 |
 
 ## 3. Phases
-### 3.1 Phase 1
+### 3.1 Phase 1: The report script
+#### Files that change
+The report script is new.
+#### Behavior
 The script writes the report.
+#### Tests
+One test proves the report.
+#### Commands
+Run npm test. It exits with 0.
+#### Definition of done
+npm test exits with 0.
 
 ## 4. Test matrix
 R1 maps to the report test.
@@ -79,7 +90,9 @@ None.
 None.
 `;
 
-// A stand-in for the claude binary. FAKE_MODE picks the answer. FAKE_RECORD
+// A stand-in for the claude binary. FAKE_MODE picks the answer. In the mode
+// "slow-for", the fake sleeps FAKE_SLEEP_MS only when the input holds the
+// text FAKE_SLOW_FOR. FAKE_RECORD
 // names a file that gets the arguments, the prompt, the cwd and SDLC_KIT_GATE.
 const fakeDir = tempDir('sdlc-kit-fake-');
 const fakeClaude = join(fakeDir, 'claude');
@@ -106,6 +119,8 @@ process.stdin.on('end', () => {
     case 'exit': console.error('boom'); process.exit(3);
     case 'sleep': return setTimeout(() => {}, 10000);
     case 'slow-pass': return setTimeout(() => result({ verdict: 'PASS', findings: [] }), Number(process.env.FAKE_SLEEP_MS));
+    case 'slow-for':
+      return setTimeout(() => result({ verdict: 'PASS', findings: [] }), input.includes(process.env.FAKE_SLOW_FOR) ? Number(process.env.FAKE_SLEEP_MS) : 0);
   }
 });
 `,
@@ -325,8 +340,8 @@ describe('pushedDocuments', () => {
     assert.deepEqual(pushedPaths('git push origin HEAD:feature', work), ['.sdlc-kit/2026-09-probe/plan.md']);
   });
 
-  test('a push to another remote does not compare with the upstream on origin', () => {
-    assert.deepEqual(pushedPaths('git push upstream HEAD', work), ['.sdlc-kit/2026-09-probe/plan.md', '.sdlc-kit/2026-09-probe/spec.md']);
+  test('a push to another remote lists only the changes of commits that no remote holds', () => {
+    assert.deepEqual(pushedPaths('git push upstream HEAD', work), ['.sdlc-kit/2026-09-probe/plan.md']);
   });
 
   test('a push with -C lists the files of that repository', () => {
@@ -347,6 +362,97 @@ describe('pushedDocuments', () => {
 
   test('a local ref that does not exist throws', () => {
     assert.throws(() => pushedPaths('git push origin nothing', work), /the local ref "nothing" does not exist/);
+  });
+});
+
+// A work repository whose remote `origin` holds the intent on `main`. The
+// branch `feat` starts from that commit and, with `pushed`, is on the remote.
+// Then `main` gets a new intent text on the remote.
+function mainMovesOn({ pushed = false } = {}) {
+  const root = tempDir('sdlc-kit-repo-');
+  const work = join(root, 'work');
+  sh(root, 'init', '--bare', '-q', '-b', 'main', join(root, 'remote.git'));
+  sh(root, 'init', '-q', '-b', 'main', work);
+  sh(work, 'remote', 'add', 'origin', join(root, 'remote.git'));
+  write(work, '.sdlc-kit/2026-09-probe/intent.md', INTENT);
+  sh(work, 'add', '-A');
+  sh(work, 'commit', '-q', '-m', 'Add the intent');
+  sh(work, 'push', '-q', 'origin', 'main');
+  sh(work, 'checkout', '-q', '-b', 'feat');
+  write(work, 'a.js', 'export const a = 1;\n');
+  sh(work, 'add', '-A');
+  sh(work, 'commit', '-q', '-m', 'Add a');
+  if (pushed) sh(work, 'push', '-q', 'origin', 'feat');
+  sh(work, 'checkout', '-q', 'main');
+  write(work, '.sdlc-kit/2026-09-probe/intent.md', INTENT.replace('The finance team reads the report.', 'The finance team and the auditors read the report.'));
+  sh(work, 'commit', '-q', '-am', 'Name the auditors');
+  sh(work, 'push', '-q', 'origin', 'main');
+  sh(work, 'checkout', '-q', 'feat');
+  return { root, work };
+}
+
+describe('the documents of a push', () => {
+  const bash = (work, command, mode = 'fail') => decide({ tool_name: 'Bash', cwd: work, tool_input: { command } }, { env: judgeEnv(mode) });
+
+  test('a first push of a code change from a branch cut before main changed a document judges nothing', () => {
+    const { work } = mainMovesOn();
+    assert.deepEqual(bash(work, 'git push -u origin feat'), { decision: 'allow', documents: [] });
+  });
+
+  test('a force push of a code change rebased onto main judges nothing', () => {
+    const { work } = mainMovesOn({ pushed: true });
+    sh(work, 'rebase', '-q', 'main');
+    assert.deepEqual(bash(work, 'git push --force-with-lease origin feat'), { decision: 'allow', documents: [] });
+  });
+
+  test('a merge of main into a code-only branch judges nothing', () => {
+    const { work } = mainMovesOn({ pushed: true });
+    sh(work, 'merge', '-q', '--no-edit', 'origin/main');
+    assert.deepEqual(bash(work, 'git push origin feat'), { decision: 'allow', documents: [] });
+  });
+
+  test('a merge commit that edits a document gets that document judged', () => {
+    const { work } = mainMovesOn({ pushed: true });
+    sh(work, 'merge', '-q', '--no-commit', '--no-ff', 'origin/main');
+    write(work, '.sdlc-kit/2026-09-probe/intent.md', INTENT.replace('The finance team reads the report.', 'The finance team and the board read the report.'));
+    sh(work, 'add', '-A');
+    sh(work, 'commit', '-q', '--no-edit');
+    assert.deepEqual(bash(work, 'git push origin feat').documents, [{ name: '.sdlc-kit/2026-09-probe/intent.md', decision: 'deny' }]);
+  });
+
+  test('a merge commit that adds a document with an em-dash is denied by the lint', () => {
+    const { work } = mainMovesOn({ pushed: true });
+    sh(work, 'merge', '-q', '--no-commit', '--no-ff', 'origin/main');
+    write(work, '.sdlc-kit/2026-10-other/spec.md', '# Spec: Other \u2014 new\n');
+    sh(work, 'add', '-A');
+    sh(work, 'commit', '-q', '--no-edit');
+    assert.match(bash(work, 'git push origin feat').reason, /^document-gate: the lint found these lines in \.sdlc-kit\/2026-10-other\/spec\.md:\n.*em-dash/);
+  });
+
+  test('a code-only push to a second remote with no remote-tracking ref judges nothing', () => {
+    const { root, work } = mainMovesOn();
+    sh(root, 'init', '--bare', '-q', '-b', 'main', join(root, 'fork.git'));
+    sh(work, 'remote', 'add', 'fork', join(root, 'fork.git'));
+    assert.deepEqual(bash(work, 'git push fork feat'), { decision: 'allow', documents: [] });
+  });
+
+  test('a first push to an empty remote judges every document at the local ref', () => {
+    const root = tempDir('sdlc-kit-repo-');
+    const work = join(root, 'work');
+    sh(root, 'init', '--bare', '-q', '-b', 'main', join(root, 'remote.git'));
+    sh(root, 'init', '-q', '-b', 'main', work);
+    sh(work, 'remote', 'add', 'origin', join(root, 'remote.git'));
+    write(work, '.sdlc-kit/2026-09-probe/intent.md', INTENT);
+    write(work, '.sdlc-kit/2026-09-probe/plan.md', PLAN);
+    sh(work, 'add', '-A');
+    sh(work, 'commit', '-q', '-m', 'Add the stage');
+    assert.deepEqual(bash(work, 'git push origin main', 'pass'), {
+      decision: 'allow',
+      documents: [
+        { name: '.sdlc-kit/2026-09-probe/intent.md', decision: 'allow' },
+        { name: '.sdlc-kit/2026-09-probe/plan.md', decision: 'allow' },
+      ],
+    });
   });
 });
 
@@ -597,18 +703,28 @@ describe('decide', () => {
     });
 
     test('the judge runs of one push share one budget', () => {
-      const slow = (deadlineMs, floorMs) =>
+      write(work, '.sdlc-kit/2026-09-probe/plan.md', PLAN);
+      if (sh(work, 'status', '--porcelain')) sh(work, 'commit', '-qam', 'Fix the plan for the budget test');
+      const slow = (slowFor, sleepMs, deadlineMs, floorMs) =>
         decide(
           { tool_name: 'Bash', cwd: work, tool_input: { command: 'git push origin HEAD' } },
-          { env: judgeEnv('slow-pass', { FAKE_SLEEP_MS: '1500' }), deadline: Date.now() + deadlineMs, floorMs },
+          { env: judgeEnv('slow-for', { FAKE_SLOW_FOR: slowFor, FAKE_SLEEP_MS: String(sleepMs) }), deadline: Date.now() + deadlineMs, floorMs },
         );
-      const timedOut = slow(2500, 100);
+      // The intent judge answers at once, and the plan judge never answers
+      // in the time left.
+      const timedOut = slow('# Plan:', 60_000, 5000, 100);
       assert.deepEqual(timedOut.documents, [
         { name: '.sdlc-kit/2026-09-probe/intent.md', decision: 'allow' },
         { name: '.sdlc-kit/2026-09-probe/plan.md', decision: 'deny' },
       ]);
       assert.match(timedOut.reason, /the judge gave no verdict in the time that the gate had left/);
-      const floor = slow(3000, 1600);
+      // The intent judge uses 4 of the 6 seconds, so less than the floor is
+      // left for the plan.
+      const floor = slow('# Intent:', 4000, 6000, 2500);
+      assert.deepEqual(floor.documents, [
+        { name: '.sdlc-kit/2026-09-probe/intent.md', decision: 'allow' },
+        { name: '.sdlc-kit/2026-09-probe/plan.md', decision: 'deny' },
+      ]);
       assert.equal(floor.reason, outOfTimeReason('.sdlc-kit/2026-09-probe/plan.md'));
     });
 
