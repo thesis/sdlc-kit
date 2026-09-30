@@ -55,6 +55,32 @@ function fillTemplate(type) {
     .join('\n');
 }
 
+const PLAN_TEXT = {
+  Summary: 'The deploy script lands in phase 1.',
+  'Risks before the work starts': 'None.',
+  Blockers: 'None.',
+};
+
+// Builds a first plan the way the plan skill does: no guidance comments,
+// the export commit in the header, one row per phase in the work order, and
+// text under each heading. "7. What changed" stays empty.
+function fillPlan() {
+  const text = templateText('plan')
+    .replace(/\n?<!--[\s\S]*?-->\n?/g, '\n')
+    .replace('<name>', 'Vault on Robinhood')
+    .replace(/^Implements: .*$/m, 'Implements: spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8')
+    .replace('<title>', 'The deploy script')
+    .replace('| --- | --- | --- |', '| --- | --- | --- |\n| 1. The deploy script | None | npm test exits with 0 |');
+  return text
+    .split('\n')
+    .flatMap((line) => {
+      const h = line.match(/^#{2,4} (?:\d+\. )?(.+)$/);
+      if (!h || line.startsWith('### ') || ['Work order', 'Phases', 'What changed'].includes(h[1])) return [line];
+      return [line, PLAN_TEXT[h[1]] ?? 'The text of this section.'];
+    })
+    .join('\n');
+}
+
 const PLAN = `# Plan: Vault on Robinhood
 Implements: spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8
 
@@ -62,10 +88,12 @@ Implements: spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8
 Each deliverable lands in one phase.
 
 ## 2. Work order
-Phase 1 merges first.
+| Phase | Depends on | Merge gate |
+| --- | --- | --- |
+| 1. The deploy script | None | npm test exits with 0 |
 
 ## 3. Phases
-### 3.1 Phase 1
+### 3.1 Phase 1: The deploy script
 #### Files that change
 The deploy script changes.
 #### Behavior
@@ -92,7 +120,7 @@ function tempDir() {
 }
 
 describe('templates', () => {
-  for (const type of ['intent', 'spec']) {
+  for (const type of ['intent', 'spec', 'plan']) {
     test(`the ${type} template headings match the lint table`, () => {
       const headings = templateText(type)
         .split('\n')
@@ -103,7 +131,37 @@ describe('templates', () => {
         TEMPLATES[type].sections.map((s, i) => `${i + 1}. ${s.title}`),
       );
     });
+  }
 
+  test('a first plan as the skill writes it has no findings', () => {
+    assert.deepEqual(lintText(fillPlan(), { type: 'plan' }), []);
+  });
+
+  test('the cli exits with 0 on a first plan as the skill writes it', () => {
+    const draft = join(tempDir(), 'plan.md');
+    writeFileSync(draft, fillPlan());
+    const r = spawnSync(process.execPath, [lintScript, '--type', 'plan', draft], { encoding: 'utf8' });
+    assert.equal(r.stdout, '');
+    assert.equal(r.status, 0);
+  });
+
+  test('the plan template has the five subsections of the lint, in order', () => {
+    const titles = templateText('plan')
+      .split('\n')
+      .filter((l) => l.startsWith('#### '))
+      .map((l) => l.slice(5));
+    assert.deepEqual(titles, TEMPLATES.plan.sections.find((s) => s.subsections).subsections);
+  });
+
+  test('an unfilled plan template fails only on placeholders, empty sections and the work order', () => {
+    const found = new Set(rules(templateText('plan'), 'plan'));
+    for (const rule of ['structure-placeholder', 'structure-empty-section', 'structure-work-order']) assert.ok(found.has(rule), rule);
+    for (const rule of found) {
+      assert.ok(['structure-placeholder', 'structure-empty-section', 'structure-work-order'].includes(rule), `unexpected rule ${rule}`);
+    }
+  });
+
+  for (const type of ['intent', 'spec']) {
     test(`a first ${type} draft as the skill writes it has no findings`, () => {
       assert.deepEqual(lintText(fillTemplate(type), { type }), []);
     });
@@ -221,6 +279,55 @@ describe('structure', () => {
   test('requirements with no R numbers fail', () => {
     const text = spec.replace('- R1: A lender', '- A lender').replace('- R2: The page', '- The page');
     assert.ok(rules(text, 'spec').includes('structure-numbered-items'));
+  });
+
+  for (const [name, value] of [
+    ['a missing sha', 'spec.md · intent.md @ 1a2b3c4'],
+    ['a sha of six characters', 'spec.md @ 1a2b3c · intent.md @ 1a2b3c4'],
+    ['the files in the other order', 'intent.md @ 1a2b3c4 · spec.md @ 1a2b3c4'],
+    ['a sha that is not hex', 'spec.md @ main · intent.md @ 1a2b3c4'],
+  ]) {
+    test(`a plan Implements field with ${name} fails`, () => {
+      assert.deepEqual(rules(PLAN.replace('spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8', value), 'plan'), ['structure-implements']);
+    });
+  }
+
+  test('a plan Implements field with two full shas passes', () => {
+    const sha = 'a'.repeat(40);
+    assert.deepEqual(rules(PLAN.replace('spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8', `spec.md @ ${sha} · intent.md @ ${sha}`), 'plan'), []);
+  });
+
+  test('a work order with no table fails', () => {
+    const text = PLAN.replace(/\| Phase \| Depends on[^\n]*\n[^\n]*\n[^\n]*\n/, 'Phase 1 merges first.\n');
+    assert.deepEqual(rules(text, 'plan'), ['structure-work-order']);
+  });
+
+  for (const header of ['| Phase | Gate |', '| Phase | PR | Depends on | Merge gate |', '| Depends on | Phase | Merge gate |']) {
+    test(`a work order table with the header ${header} fails`, () => {
+      assert.deepEqual(rules(PLAN.replace('| Phase | Depends on | Merge gate |', header), 'plan'), ['structure-work-order']);
+    });
+  }
+
+  test('a work order table with no row fails', () => {
+    assert.deepEqual(rules(PLAN.replace('| 1. The deploy script | None | npm test exits with 0 |\n', ''), 'plan'), ['structure-work-order']);
+  });
+
+  test('a phase with a missing subsection fails', () => {
+    assert.deepEqual(rules(PLAN.replace('#### Tests\n', ''), 'plan'), ['structure-phase-sections']);
+  });
+
+  test('a phase with its subsections out of order fails', () => {
+    const text = PLAN.replace('#### Tests', '#### TMP').replace('#### Commands', '#### Tests').replace('#### TMP', '#### Commands');
+    assert.deepEqual(rules(text, 'plan'), ['structure-phase-sections']);
+  });
+
+  test('a phase with an extra subsection passes', () => {
+    assert.deepEqual(rules(PLAN.replace('#### Tests\n', '#### Tests\n#### Fixtures\nOne fixture.\n'), 'plan'), []);
+  });
+
+  test('a "7. What changed" entry in the template form passes', () => {
+    const entry = '\n## 7. What changed\n### 2026-10-02 · Phase 1\nThe script reads the address from the environment, because the deploy host has no config file.\n';
+    assert.deepEqual(rules(`${PLAN}${entry}`, 'plan'), []);
   });
 
   test('plan phases with no 3.N subsection fail', () => {

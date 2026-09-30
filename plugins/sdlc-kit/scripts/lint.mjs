@@ -5,8 +5,8 @@ import { pathToFileURL } from 'node:url';
 
 export const STATUSES = ['draft', 'in review', 'agreed', 'frozen'];
 
-// The top-level headings of each stage template, in order. The intent and
-// spec lists must match skills/<type>/template.md.
+// The top-level headings of each stage template, in order. Each list must
+// match skills/<type>/template.md.
 export const TEMPLATES = {
   intent: {
     prefix: 'Intent',
@@ -53,10 +53,12 @@ export const TEMPLATES = {
     owner: false,
     linear: false,
     exported: false,
+    implementsForm: /^spec\.md @ [0-9a-f]{7,40} · intent\.md @ [0-9a-f]{7,40}$/,
+    implementsHint: 'spec.md @ <sha> · intent.md @ <sha>',
     sections: [
       { title: 'Summary' },
-      { title: 'Work order' },
-      { title: 'Phases', numbered: 'phases' },
+      { title: 'Work order', table: ['Phase', 'Depends on', 'Merge gate'] },
+      { title: 'Phases', numbered: 'phases', subsections: ['Files that change', 'Behavior', 'Tests', 'Commands', 'Definition of done'] },
       { title: 'Test matrix' },
       { title: 'Risks before the work starts' },
       { title: 'Blockers' },
@@ -695,6 +697,9 @@ function checkStructure(doc, type, add) {
     const found = header.map((h) => ({ ...h, m: h.text.match(/(?:^|[\s·|])Implements:[ \t]*([^\n]*)/) })).find((h) => h.m);
     if (!found) add(headerStart + 1, 'structure-implements', 'the header has no "Implements:" field');
     else if (!found.m[1].trim()) add(found.no, 'structure-implements', 'the "Implements:" field is empty');
+    else if (template.implementsForm && !/<[a-z][a-z -]*>/i.test(found.m[1]) && !template.implementsForm.test(found.m[1].trim())) {
+      add(found.no, 'structure-implements', `write the field as "Implements: ${template.implementsHint}", each sha with 7 to 40 hex characters`);
+    }
   }
   if (template.owner) {
     const found = header.map((h) => ({ ...h, m: h.text.match(/(?:^|[\s·|])Owner:[ \t]*([^·\n]*)/) })).find((h) => h.m);
@@ -771,6 +776,8 @@ function checkStructure(doc, type, add) {
         add(range.start, 'structure-summary-bullets', `section "${want}" has ${bullets.length} bullets; the limit is ${section.maxBullets}`);
       }
     }
+    if (section.table) checkTable(doc, range, section, want, add);
+    if (section.subsections) checkSubsections(doc, range, section, add);
     if (section.numbered && !/^\s*none\b/i.test(content[0].text)) {
       const form = NUMBER_FORM[section.numbered];
       if (section.numbered === 'phases') {
@@ -790,6 +797,66 @@ function checkStructure(doc, type, add) {
       }
     }
   });
+}
+
+/** Splits one markdown table row into its trimmed cells. An escaped pipe stays in its cell. */
+function tableCells(line) {
+  let row = line.trim();
+  if (row.startsWith('|')) row = row.slice(1);
+  if (row.endsWith('|') && !row.endsWith('\\|')) row = row.slice(0, -1);
+  return row.split(/(?<!\\)\|/).map((cell) => cell.trim());
+}
+
+// The first table in the lines from `start` to `end`: its header row and the
+// rows after the separator row, up to the first line that is not a row.
+function firstTable(doc, start, end) {
+  const at = doc.info.findIndex((l, i) => i >= start && i < end && l.kind === 'table');
+  if (at < 0) return null;
+  const table = { headerLine: at + 1, header: tableCells(doc.lines[at]), rows: [] };
+  if (doc.info[at + 1]?.kind !== 'separator') return table;
+  for (let i = at + 2; i < end && doc.info[i].kind === 'table'; i++) {
+    table.rows.push({ line: i + 1, cells: tableCells(doc.lines[i]) });
+  }
+  return table;
+}
+
+function checkTable(doc, range, section, want, add) {
+  const table = firstTable(doc, range.start, range.end);
+  const columns = section.table.join(' | ');
+  if (!table) {
+    add(range.start, 'structure-work-order', `section "${want}" has no table; add one with the columns ${columns}`);
+    return;
+  }
+  if (table.header.join('|').toLowerCase() !== section.table.join('|').toLowerCase()) {
+    add(table.headerLine, 'structure-work-order', `the table of "${want}" must have the columns ${columns}, in this order`);
+    return;
+  }
+  if (!table.rows.length) add(table.headerLine, 'structure-work-order', `the table of "${want}" has no row; add one row per phase`);
+}
+
+// Each "### 3.N" phase holds the level-4 headings of the template in order.
+// A phase may add its own level-4 headings between them.
+function checkSubsections(doc, range, section, add) {
+  const wanted = section.subsections.map((t) => t.toLowerCase());
+  let phase = null;
+  const phases = [];
+  for (let i = range.start; i < range.end; i++) {
+    if (doc.info[i].kind !== 'heading') continue;
+    const [, hashes, text] = doc.lines[i].match(HEADING);
+    if (hashes.length <= 3) {
+      phase = PHASE_HEADING.test(doc.lines[i]) ? { line: i + 1, name: text.trim(), titles: [] } : null;
+      if (phase) phases.push(phase);
+    } else if (hashes.length === 4 && phase) {
+      phase.titles.push(text.trim().toLowerCase());
+    }
+  }
+  for (const p of phases) {
+    const found = p.titles.filter((t) => wanted.includes(t));
+    if (found.join('|') !== wanted.join('|')) {
+      const list = section.subsections.map((t) => `"#### ${t}"`).join(', ');
+      add(p.line, 'structure-phase-sections', `phase "${p.name}" must hold the headings ${list}, once each and in this order`);
+    }
+  }
 }
 
 // The items of a section are its level-3 headings when it has any. Otherwise
