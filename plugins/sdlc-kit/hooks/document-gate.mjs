@@ -431,41 +431,8 @@ function hasRef(push, ref) {
   return git(push, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], { allowFail: true }) !== null;
 }
 
-function currentBranch(push) {
-  return gitLine(push, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
-}
-
-function defaultRemote(push, branch) {
-  const config = (key) => gitLine(push, ['config', '--get', key]);
-  return (branch && config(`branch.${branch}.pushRemote`)) || config('remote.pushDefault') || (branch && config(`branch.${branch}.remote`)) || 'origin';
-}
-
-function branchName(ref, push) {
-  if (ref === 'HEAD') return currentBranch(push);
-  if (ref.startsWith('refs/heads/')) return ref.slice('refs/heads/'.length);
-  if (ref.startsWith('refs/')) return null;
-  return ref;
-}
-
-// The remote-tracking ref that shows what the remote holds now: the named
-// remote branch, else the upstream of the local branch, else the default
-// branch of the remote. Null when none of them exists, and then the push
-// gates every stage file.
-function remoteRef(push, remote, localBranch, dstBranch) {
-  if (dstBranch && hasRef(push, `refs/remotes/${remote}/${dstBranch}`)) return `refs/remotes/${remote}/${dstBranch}`;
-  // The upstream counts only when it is on the remote of this push.
-  if (localBranch && gitLine(push, ['config', '--get', `branch.${localBranch}.remote`]) === remote) {
-    const upstream = gitLine(push, ['rev-parse', '--symbolic-full-name', `${localBranch}@{upstream}`]);
-    if (upstream && hasRef(push, upstream)) return upstream;
-  }
-  const head = gitLine(push, ['symbolic-ref', '--quiet', `refs/remotes/${remote}/HEAD`]);
-  return head && hasRef(push, head) ? head : null;
-}
-
-/** Lists the local refs that a push sends, with the remote ref that each one updates. */
+/** Lists the local refs that a push sends. */
 function pushedRefs(push) {
-  const branch = currentBranch(push);
-  const remote = push.remote ?? defaultRemote(push, branch);
   let specs = push.refspecs;
   if (push.all) {
     specs = (git(push, ['for-each-ref', '--format=%(refname:short)', 'refs/heads']) ?? '').split('\n').filter(Boolean);
@@ -475,38 +442,60 @@ function pushedRefs(push) {
   const refs = [];
   for (const spec of specs) {
     const plain = spec.replace(/^\+/, '');
-    const [src, dst] = plain.includes(':') ? [plain.slice(0, plain.indexOf(':')), plain.slice(plain.indexOf(':') + 1)] : [plain, null];
+    const src = plain.includes(':') ? plain.slice(0, plain.indexOf(':')) : plain;
     if (!src) continue;
     if (!hasRef(push, src)) throw new Error(`the local ref "${src}" does not exist`);
-    const localBranch = branchName(src, push);
-    const dstBranch = dst ? branchName(dst, push) : localBranch;
-    refs.push({ local: src, remote: remoteRef(push, remote, localBranch, dstBranch) });
+    refs.push(src);
   }
   return refs;
 }
 
 /**
  * Lists the markdown files under `.sdlc-kit/` that a push publishes: each
- * one that differs between the remote ref and the pushed local ref. A push
- * with no remote ref publishes every such file at the local ref. Returns
- * null when the directory is not in a git repository.
+ * file that the new commits of the push change and that exists at the
+ * pushed local ref. A new commit is a commit of the local ref that no
+ * remote-tracking ref of any remote holds, so the list depends on the last
+ * fetch. A change that a merge commit makes itself counts too. When no
+ * remote has a remote-tracking ref, as before a first push to an empty
+ * remote, every commit is new, so the list holds every markdown file under
+ * `.sdlc-kit/` at the local ref. Returns null when the directory is not in a
+ * git repository.
  */
 export function pushedDocuments(push) {
   if (!existsSync(push.dir) || !statSync(push.dir).isDirectory()) return null;
-  if (gitLine(push, ['rev-parse', '--git-dir']) === null) return null;
+  // One call gives the git dir and the top. It fails outside a work tree,
+  // such as in a bare repository, and then the git dir alone decides.
+  const both = gitLine(push, ['rev-parse', '--git-dir', '--show-toplevel']);
+  if (both === null && gitLine(push, ['rev-parse', '--git-dir']) === null) return null;
   if (push.delete) return [];
-  const top = gitLine(push, ['rev-parse', '--show-toplevel']);
+  const top = both?.split('\n')[1] ?? null;
   const inTop = top ? { ...push, dir: top } : push;
   const documents = [];
-  for (const ref of pushedRefs(inTop)) {
-    const listing = ref.remote
-      ? git(inTop, ['diff', '--name-only', '-z', '--no-renames', '--no-relative', '--no-ext-diff', '--diff-filter=AM', ref.remote, ref.local, '--', STAGE_DIR])
-      : git(inTop, ['ls-tree', '-r', '-z', '--name-only', '--full-tree', ref.local, '--', STAGE_DIR]);
-    for (const path of listing.split('\0').filter((p) => p.endsWith('.md'))) {
-      documents.push({ ref: ref.local, path, text: () => git(inTop, ['show', `${ref.local}:${path}`]) });
+  for (const local of pushedRefs(inTop)) {
+    const atLocal = new Set(
+      git(inTop, ['ls-tree', '-r', '-z', '--name-only', '--full-tree', local, '--', STAGE_DIR]).split('\0').filter(Boolean),
+    );
+    for (const path of changedPaths(inTop, local)) {
+      if (!atLocal.has(path) || !path.endsWith('.md')) continue;
+      documents.push({ ref: local, path, text: () => git(inTop, ['show', `${local}:${path}`]) });
     }
   }
   return documents;
+}
+
+// The paths under `.sdlc-kit/` that the commits of `local` change, in path
+// order. The commits are those that no remote-tracking ref holds. With
+// --diff-merges=combined a merge commit lists the files that it changes
+// itself. With -z and an empty format, git prints a status field, then a
+// path field, for each changed file.
+function changedPaths(push, local) {
+  const args = ['log', '--name-status', '--diff-merges=combined', '--format=', '-z', '--no-renames', local, '--not', '--remotes'];
+  const fields = git(push, [...args, '--', STAGE_DIR])
+    .split('\0')
+    .filter(Boolean);
+  const paths = new Set();
+  for (let i = 0; i + 1 < fields.length; i += 2) paths.add(fields[i + 1]);
+  return [...paths].sort();
 }
 
 function readPluginFile(relative) {
@@ -555,6 +544,7 @@ export function judgeArgs(env = process.env) {
     '--max-turns', '2',
     '--no-session-persistence',
     '--setting-sources', '',
+    '--strict-mcp-config',
     '--max-budget-usd', '2',
   ];
   if (env.SDLC_KIT_JUDGE_MODEL) args.push('--model', env.SDLC_KIT_JUDGE_MODEL);

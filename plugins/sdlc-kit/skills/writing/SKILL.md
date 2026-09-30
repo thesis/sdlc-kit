@@ -153,24 +153,11 @@ docs, README files, code comments, review comments.
 
 <!-- lint-enable -->
 
-## Tiers
-
-The rules fall into tiers. Each document type must clear the tiers that the table marks.
-
-| Tier | Rules | Intent | Spec | Plan | Checked by |
-| --- | --- | --- | --- | --- | --- |
-| Structure | Template headings present, numbered and in order. Required sections non-empty. Numbered items where the template numbers. Header fields filled. Cross-references in the required form, below. | yes | yes | yes | lint |
-| Mechanical (STE) | The STE rules listed above: one word per thing, one part of speech, short common words, sentence length, active voice, simple tenses, no -ing forms, articles kept, noun clusters. Plus: no em-dashes, no banned words, no volatile counts. | yes | yes | yes | lint for em-dash, banned words, sentence length, present perfect and -ing forms; judge for the rest |
-| Altitude and audience | Intent: problem and outcome, no solution internals. Spec: a non-engineer can follow every section, which is what STE is for; engineering detail goes to the plan. Plan: a fresh-context agent can implement from it alone; every requirement traces to a file and a test. | yes | yes | yes, plus the completeness test | judge |
-
-The judge is the agent `${CLAUDE_PLUGIN_ROOT}/agents/writing-judge.md`. The section "The gate" says when the lint and the judge run.
-
 ## Additions
 
 These rules add to the copied rule.
 
 - **Cross-references.** A reference to another stage document names the document and the numbered section title. The quoted part is a link to that heading. In markdown the form is `spec section ["7. Deliverables"](spec.md#7-deliverables)`. In a Linear document the link goes to the heading of the other Linear document. The lint checks the form. For a local file, the lint also checks that the number and the title match a heading there.
-- **Closed stage.** When every pull request in the work order of the plan is merged, the stage directory is closed. No file in it changes again. A new need, a correction or a follow-up starts a new intent that links to the closed stage.
 - **Source every fact.** A number, an address or a behavior of an external system carries a link to its source.
 
 ## Durable records
@@ -193,49 +180,6 @@ A comment reads like a teammate wrote it, not a bot.
 - No thanks and no praise: `Thanks!`, `Good point!`, `Great catch!`.
 - No AI tells: `I have addressed this by`, `As you suggested`, `Per your feedback`.
 - Plain prose. Use headers, bullets, bold or emoji only when the comment needs them.
-
-## What the lint checks
-
-Run the lint on a draft before each save:
-
-```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs --type intent <draft>
-```
-
-Run it again before every later save, also for a small edit. When the lint lists findings, fix the lines that it names. Then run the lint again. Do not do more than three attempts for one save. Do not save a draft that fails the lint. After the third failed attempt, give the owner the outstanding findings and the path of the draft. Then wait for the owner to decide.
-
-Use `--type spec` or `--type plan` for the other documents. Use `--type prose` for any other text, such as a README: it runs the mechanical checks and skips the structure checks. Each finding is one line, `path:line: rule-id: message`. The exit code is 1 when a finding exists and 0 when the draft is clean.
-
-The lint checks these rules:
-
-- Structure: the title line, the header fields, and the numbered template headings in order. The header fields are `Owner:`, `Status:` and `Linear:` for the intent, `Implements:`, `Owner:` and `Status:` for the spec, and `Implements:` for the plan. Linear has no status field for a document, so the `Status:` line is the status. Change it only when the owner says so.
-- Structure, header: an intent or a spec that comes from the export of a Linear document has one more line, `Exported: <document URL> · <ISO time>`. The line is optional, and the plan does not take it.
-- Structure, continued: required sections are not empty, and the executive summary has at most five bullets. In a section that the template numbers, every item has a number, or the section reads "None.".
-- Cross-references: the form above, and the target heading when the target is a local file. The form `section 7 of the spec` is a finding.
-- Em-dashes anywhere outside code.
-- Banned words from the table, as whole words, outside code and URLs. The lint uses these rules for words that also have a technical use:
-  - `surface`: a form of `surface` is a finding only before a determiner or a pronoun, such as `surface the`.
-  - `key`: the lint flags only praise uses. These are `is key`, `the key to success`, and `key` before a noun such as `insight` or `step`. Every other `key` passes, such as `the key signs` or `What is key rotation?`.
-  - `space`: the lint flags only the vague set, such as `in the space`, `the DeFi space` or `the lending space is`. A technical use passes, such as `user space`, `address space` or `one space after the colon`. A sentence such as `the space before the comma` is a false positive. Keep the sentence, and tell the owner which finding is wrong.
-- Sentences of more than 25 words, in paragraphs and list items. Headings, tables, code and link targets do not count.
-- The present perfect: a form of `have`, such as `has`, `hasn't` or `'ve`, before a participle. The `had` forms count too. One adverb between the two words does not hide it. Every `has been`, `have been` and `had been` is a finding. An adjective participle directly before a noun passes, such as `has limited liquidity`.
-- Progressive -ing forms: a form of `be` before a word that ends in -ing. A bare -ing word is not a finding, and neither is an adjective such as `pending`.
-
-A line with only `<!-- lint-disable -->` starts a part that the lint skips, and a line with only `<!-- lint-enable -->` ends it. These markers work only with `--type prose`. A stage document cannot switch the lint off.
-
-The lint cannot find a volatile count, a synonym, a wrong part of speech or a wrong altitude. Check those yourself against the rules above. The regex checks can give a false positive. When the text is correct, keep it. Tell the owner which finding is wrong.
-
-## The gate
-
-The gate is a hook of the plugin. It runs on each call that publishes a stage document:
-
-- every save of an intent or a spec through the `save_document` tool of the Linear MCP server;
-- every `git push` that changes a markdown file under `.sdlc-kit/`.
-
-The gate runs the lint first. When the lint passes, the gate runs the judge in a fresh context. The judge gets the document and its type, and nothing else. The gate allows the call only on a PASS verdict. A denial names the lines that the lint found, or the findings of the judge. The retry rule of "What the lint checks" applies to a denial too. Fix what the denial names. Then repeat the save or the push.
-
-- The gate cannot read the document that a `patch` save produces, so it denies every `patch` save. Send the full document in `content`.
-- A local edit is not a publication. The gate does not run on a draft in a scratch file, or on a change to a checked-out file before the push.
 
 ## Boundaries
 

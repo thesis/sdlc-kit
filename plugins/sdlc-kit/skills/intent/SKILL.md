@@ -13,6 +13,10 @@ The intent says what problem exists, who has it, and what outcome we want. Its r
 1. Read the file `${CLAUDE_PLUGIN_ROOT}/skills/writing/SKILL.md` with the Read tool. Its rules govern the document and every comment that you post.
 2. Read the file `${CLAUDE_PLUGIN_ROOT}/skills/intent/template.md` with the Read tool. The document uses its headings, in its order, with its numbers. You may add a subsection under a heading. Do not add a top-level heading.
 
+## Retry
+
+When the lint lists findings, or the gate denies a save, fix the lines or the findings that it names. Then run the lint again, or repeat the save. Stop after three failed attempts. Give the owner the outstanding findings and the path of the draft. Then wait for the owner to decide. A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
+
 ## Procedure
 
 1. Ask who the owner is. Then ask which Linear team or project gets the document. Nothing comes from a configuration file.
@@ -39,14 +43,14 @@ The intent says what problem exists, who has it, and what outcome we want. Its r
    node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs --type intent <draft>
    ```
 
-   When the lint lists findings, follow the retry rule of the writing skill.
+   When the lint lists findings, follow the retry rule above.
 6. Read the draft again against the rules that the lint cannot check. These rules are one word for one thing, no volatile counts, and no solution internals. Fix what you find. Then run the lint again.
 7. Create the Linear document with the `save_document` tool of the Linear MCP server:
    - Use the title `Intent: <name>`.
    - Give the document exactly one parent: the team or the project that the owner named.
    - Put the draft in `content` as markdown.
 
-   The gate of the plugin runs on the save. When it denies the save, follow the retry rule of the writing skill.
+   The gate of the plugin runs on the save. When it denies the save, follow the retry rule above.
 8. Replace `pending` on the `Linear:` line with the URL of the new document. Run the lint on the changed draft. Then save the document again with `save_document`, the `id` of the document and the full draft in `content`. The gate runs on this save too.
 9. Post a first comment on the document with the `save_comment` tool. Pass the `documentId` of the document. In the comment, list the open problems. Ask the named stakeholders for answers, with an @mention for each one. The comment follows the writing rules.
 10. Give the owner the URL of the document.
