@@ -16,7 +16,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `skills/intent/`, `skills/spec/` and `skills/plan/` each hold a `SKILL.md` with the procedure and a `template.md` with the numbered headings of the document.
 - `skills/writing/SKILL.md` holds the writing rules and nothing else: no lifecycle text and no description of the checks. It is not user-invocable.
 - `agents/writing-judge.md` is the writing judge: its rubric and its verdict format. It names the writing rules by their section titles and does not copy them.
-- `agents/completeness-judge.md` is the completeness judge of the plan: its classes of items and its verdict format. It has the tools `Read`, `Glob` and `Grep` only.
 - `hooks/hooks.json` wires the gate, `hooks/document-gate.mjs`, to two PreToolUse matchers: `save_document` on any MCP server, and `Bash`. `hooks/document-gate.test.mjs` holds its tests.
 - `scripts/lint.mjs` is the lint. `scripts/linear.mjs` holds the text helpers for a Linear document: the export and the comment threads. It makes no network call. Each script has its tests in a `.test.mjs` file next to it.
 - The scripts and the hook are plain Node 22 with no dependencies and no `package.json`.
@@ -55,7 +54,7 @@ node plugins/sdlc-kit/scripts/lint.mjs --type prose README.md CLAUDE.md
 - The skills write to Linear through the MCP server in `.mcp.json`.
 - The documents of a push are the markdown files under `.sdlc-kit/` that its new commits change and that exist at the pushed ref. The gate lists them with `git log --diff-merges=combined <local ref> --not --remotes`, so a change that a merge commit makes itself counts too. A new commit is one that no remote-tracking ref of any remote holds, so the list depends on the last fetch. Before a first push to an empty remote, every commit is new, and the gate judges every stage document at the local ref.
 - The judge run has `--strict-mcp-config`, so it loads no MCP server. Without it the run loads the instructions of the claude.ai connectors of the user, and its context grows by about a third.
-- The plan skill runs the completeness judge with the Agent tool, as `sdlc-kit:completeness-judge`. The gate does not run it. The time of the completeness judge grows with the repository and has no bound. The gate budget must cover the writing judge of every document in a push.
+- The plan skill runs its completeness check with the Agent tool. The subagent is `general-purpose`, never a fork, and gets the rubric inline from the skill, so it has a fresh context. The gate does not run it. The time of the check grows with the repository and has no bound. The gate budget must cover the writing judge of every document in a push.
 - The steward and the feedback skill are not in the tree. Do not refer to a command that does not exist yet.
 
 ## Writing rules for this repository

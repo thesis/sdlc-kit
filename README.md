@@ -48,7 +48,7 @@ A stage of work starts with an intent, continues with a spec and ends with the b
 9. Claude proposes the name of the stage directory, `.sdlc-kit/YYYY-MM-<slug>/`. Accept the name or change it.
 10. Claude sets the status of the intent and the spec to `frozen` in Linear and exports both documents to the stage directory. It opens a draft pull request with the two files and posts the link of the pull request on both Linear documents. From here, git holds the intent and the spec.
 11. Claude reads the code that each deliverable of the spec touches. It asks you only about the choices of the repository, such as the CI gates, the test budget and stacked pull requests. Then it writes `plan.md`, with one pull request per phase.
-12. The completeness judge reads the plan and the repository in a fresh context. It lists what an agent cannot find out from the plan alone. Claude fixes the plan until the list is empty, or gives you the list after three runs.
+12. Claude runs a completeness check. A subagent with a fresh context reads the plan and the repository. It lists what an agent cannot find out from the plan alone. Claude fixes the plan until the list is empty, or gives you the list after three runs.
 13. Claude pushes the plan to the pull request and marks the pull request ready for review. Review the shape of the plan, not each line.
 14. Build each phase in its own pull request. Edit the plan in that pull request only when the work finds something unexpected that changes the plan. The edit adds an entry to "7. What changed" of the plan, with the correction to the phase, the spec or the intent.
 15. When the last phase merges, the stage is done. Nothing in it changes again. A new need starts a new intent.
@@ -61,4 +61,4 @@ Every document and every comment follows the writing rules of the plugin, based 
 - `/sdlc-kit:spec <Linear URL of the intent>` turns an agreed intent into a spec and creates it as a Linear document.
 - `/sdlc-kit:plan <Linear URL of the spec>` freezes the agreed intent and spec, exports them to the repository and writes the plan in a draft pull request.
 
-The plugin also holds the `writing` skill and the `writing-judge` and `completeness-judge` agents. None of them has a command. Claude reads the skill before it writes a document or a comment. The gate runs the writing judge, and the plan skill runs the completeness judge.
+The plugin also holds the `writing` skill and the `writing-judge` agent. Neither has a command. Claude reads the skill before it writes a document or a comment, and the gate runs the agent.
