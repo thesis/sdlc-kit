@@ -555,6 +555,7 @@ export function judgeArgs(env = process.env) {
     '--max-turns', '2',
     '--no-session-persistence',
     '--setting-sources', '',
+    '--strict-mcp-config',
     '--max-budget-usd', '2',
   ];
   if (env.SDLC_KIT_JUDGE_MODEL) args.push('--model', env.SDLC_KIT_JUDGE_MODEL);

@@ -432,11 +432,12 @@ describe('gate', () => {
       assert.equal(seen.input, `Document type: intent\n\n<document>\n${INTENT}\n</document>\n`);
     });
 
-    test('the run is headless, with the judge agent, no tools and no settings', () => {
+    test('the run is headless, with the judge agent, no tools, no settings and no MCP servers', () => {
       assert.equal(seen.argv[0], '-p');
       assert.equal(option('--agent'), 'writing-judge');
       assert.equal(option('--tools'), '');
       assert.equal(option('--setting-sources'), '');
+      assert.ok(seen.argv.includes('--strict-mcp-config'));
       assert.equal(option('--output-format'), 'json');
       assert.equal(option('--max-turns'), '2');
       assert.equal(option('--max-budget-usd'), '2');
