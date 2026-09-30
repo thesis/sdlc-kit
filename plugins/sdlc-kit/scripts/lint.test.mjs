@@ -463,152 +463,21 @@ describe('em-dash', () => {
   });
 
   test('a list continuation at the content column is prose', () => {
-    const found = rules('1. Step one.\n\n    Paragraph inside the step \u2014 with a dash. We leverage it.\n');
-    assert.deepEqual(found.sort(), ['banned-word', 'em-dash']);
+    const found = rules('1. Step one.\n\n    Paragraph inside the step \u2014 with a dash. It has failed.\n');
+    assert.deepEqual(found.sort(), ['em-dash', 'present-perfect']);
   });
 
   test('a code block four columns past the list content is code', () => {
-    assert.deepEqual(rules('1. Step one.\n\n       code \u2014 here, we leverage it\n'), []);
+    assert.deepEqual(rules('1. Step one.\n\n       code \u2014 here, it has failed\n'), []);
   });
 
-  test('a banned word in an indented code block passes', () => {
-    assert.deepEqual(rules('The output:\n\n    We leverage it.\n'), []);
+  test('a perfect tense in an indented code block passes', () => {
+    assert.deepEqual(rules('The output:\n\n    It has failed.\n'), []);
   });
 
   test('a hyphen and an en-dash pass', () => {
     assert.deepEqual(rules('The 2026-09 stage covers pages 3–5.'), []);
   });
-});
-
-describe('banned-word', () => {
-  test('a banned word fails', () => {
-    assert.deepEqual(rules('We leverage the vault.'), ['banned-word']);
-  });
-
-  test('an inflected banned word fails', () => {
-    assert.deepEqual(rules('The change streamlined the deploy.'), ['banned-word']);
-  });
-
-  test('a banned word in capitals fails', () => {
-    assert.deepEqual(rules('A Robust vault.'), ['banned-word']);
-  });
-
-  test('a banned phrase across a line break fails', () => {
-    assert.deepEqual(rules('We did a deep\ndive on the rate.'), ['banned-word']);
-  });
-
-  test('a banned word in a code span passes', () => {
-    assert.deepEqual(rules('Set `key` in the file.'), []);
-  });
-
-  test('a banned word in a fenced code block passes', () => {
-    assert.deepEqual(rules('```\nconst key = 1;\n```\n'), []);
-  });
-
-  test('a banned word in a URL passes', () => {
-    assert.deepEqual(rules('See https://example.com/robust-design for the source.'), []);
-  });
-
-  test('a banned word in a link target passes', () => {
-    assert.deepEqual(rules('See [the source](https://example.com/key) for the rate.'), []);
-  });
-
-  test('a banned word inside a longer word passes', () => {
-    assert.deepEqual(rules('The monkey stays in the whitespace of the keyboard.'), []);
-  });
-
-  test('a banned word in a hyphenated compound passes', () => {
-    assert.deepEqual(rules('The store holds key-value pairs.'), []);
-  });
-
-  test('"key" after a technical word passes', () => {
-    assert.deepEqual(rules('The deployer holds the private key and the API key.'), []);
-  });
-
-  test('"key" as praise fails', () => {
-    assert.deepEqual(rules('This is a key step.'), ['banned-word']);
-  });
-
-  test('"surface" before a determiner fails', () => {
-    assert.deepEqual(rules('The script surfaces the rate.'), ['banned-word']);
-  });
-
-  test('"surface" as a noun passes', () => {
-    assert.deepEqual(rules('The attack surface is small.'), []);
-  });
-
-  for (const text of [
-    'The EOA behind that key signs the call.',
-    'A leaked allocator key.',
-    'Rotate the key every month.',
-    'The key is the object form.',
-    'Keep the keys in the vault.',
-    'The script reads the key, then the address.',
-    'The explorer picks the Etherscan key shape.',
-    'Generate a key pair for the deployer.',
-    'Each key maps to a row.',
-    'The signer uses the key to sign.',
-    'A key compromise drains the vault.',
-    'The key custody plan and the key generation step are ready.',
-    'The key signer approves.',
-    'What is key rotation?',
-    'Key holders sign each transfer.',
-    'Key shares are split between the signers.',
-    'Key rotations happen every month.',
-    'The key results of the quarter are on the page.',
-  ]) {
-    test(`"key" as a noun passes: ${text}`, () => {
-      assert.deepEqual(rules(text), []);
-    });
-  }
-
-  for (const text of [
-    'A key insight.',
-    'Speed is key.',
-    'The fix is key.',
-    'They are key.',
-    'Speed is key to the launch.',
-    'The key to success is speed.',
-    'The key to adoption is trust.',
-    'Key differences remain.',
-    'Key findings follow.',
-    'The key component of the design is the buffer.',
-    'A key concern is the rate.',
-    'The key part is the rate.',
-  ]) {
-    test(`"key" as praise fails: ${text}`, () => {
-      assert.deepEqual(rules(text), ['banned-word']);
-    });
-  }
-
-  for (const text of [
-    'Leave one space after the colon.',
-    'The code runs in user space.',
-    'The kernel space is small.',
-    'The address space grows.',
-    'The disk has little free disk space.',
-    'Use a space character.',
-    'Put the space character between the words.',
-    'The search space is small.',
-  ]) {
-    test(`"space" as a technical word passes: ${text}`, () => {
-      assert.deepEqual(rules(text), []);
-    });
-  }
-
-  for (const text of [
-    'We work in the DeFi space.',
-    'We lead in this space.',
-    'The lending space is crowded.',
-    'The design space is wide.',
-    'Much happens in the space.',
-    'The space grows every year.',
-    'Many teams in the space ship fast.',
-  ]) {
-    test(`"space" as a vague word fails: ${text}`, () => {
-      assert.deepEqual(rules(text), ['banned-word']);
-    });
-  }
 });
 
 describe('sentence-length', () => {
@@ -824,15 +693,15 @@ describe('cross-references', () => {
 });
 
 describe('lint-disable markers', () => {
-  const text = 'Intro.\n\n<!-- lint-disable -->\nWe leverage it \u2014 always.\n<!-- lint-enable -->\n\nWe leverage it.\n';
+  const text = 'Intro.\n\n<!-- lint-disable -->\nIt has failed \u2014 always.\n<!-- lint-enable -->\n\nIt has failed.\n';
 
   test('the prose type skips the text between the markers', () => {
     const found = lintText(text, { type: 'prose' });
-    assert.deepEqual(found.map((f) => [f.line, f.rule]), [[7, 'banned-word']]);
+    assert.deepEqual(found.map((f) => [f.line, f.rule]), [[7, 'present-perfect']]);
   });
 
   test('a marker inside a code span does not switch the lint off', () => {
-    assert.deepEqual(rules('Use `<!-- lint-disable -->` here.\n\nWe leverage it.\n'), ['banned-word']);
+    assert.deepEqual(rules('Use `<!-- lint-disable -->` here.\n\nIt has failed.\n'), ['present-perfect']);
   });
 
   test('a stage document type ignores the markers', () => {
@@ -846,7 +715,7 @@ describe('cli', () => {
   const clean = join(dir, 'clean.md');
   const dirty = join(dir, 'dirty.md');
   writeFileSync(clean, 'A short line.\n');
-  writeFileSync(dirty, 'A short line.\nWe leverage it.\n');
+  writeFileSync(dirty, 'A short line.\nIt has failed.\n');
   const run = (...args) => spawnSync(process.execPath, [lintScript, ...args], { encoding: 'utf8' });
 
   test('a clean file exits with 0 and prints nothing', () => {
@@ -858,7 +727,7 @@ describe('cli', () => {
   test('a finding exits with 1 and prints path:line: rule-id: message', () => {
     const r = run('--type', 'prose', clean, dirty);
     assert.equal(r.status, 1);
-    assert.match(r.stdout, new RegExp(`^${dirty.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:2: banned-word: .+\\n$`));
+    assert.match(r.stdout, new RegExp(`^${dirty.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:2: present-perfect: .+\\n$`));
   });
 
   test('--json prints an array of findings', () => {

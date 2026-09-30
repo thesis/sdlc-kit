@@ -87,78 +87,10 @@ const PHASE_HEADING = /^#{3}\s+3\.\d+\s/;
 const NUMBER_FORM = { items: '"1."', requirements: '"R1"', phases: '"### 3.1 Phase 1"', entries: '"### 7.1 <date> · Phase 1"' };
 const SUBSECTION_NUMBER = /^(\d+\.\d+\.\d+)\s+(.*)$/;
 
-const WRITE_INSTEAD = {
-  leg: 'name the thing: the job, the side, the step',
-  'load-bearing': 'say what breaks when you remove it',
-  verbatim: 'write "an unchanged copy", "byte for byte" or "with no edits"',
-  surface: 'write "show", "report", "print" or "log"',
-  leverage: 'write "use"',
-  facilitate: 'write "let", "help" or "allow"',
-  robust: 'say what it survives',
-  seamless: 'cut the word',
-  holistic: 'cut the word',
-  elegant: 'cut the word',
-  crucial: 'say what fails without it',
-  vital: 'say what fails without it',
-  key: 'say what fails without it',
-  critical: 'say what fails without it',
-  delve: 'write "read", "study" or "look at"',
-  'dive into': 'write "read", "study" or "look at"',
-  'deep dive': 'write "read", "study" or "look at"',
-  landscape: 'name the actual set of things',
-  ecosystem: 'name the actual set of things',
-  realm: 'name the actual set of things',
-  space: 'name the actual set of things',
-  journey: 'name the sequence of events',
-  story: 'name the sequence of events',
-  narrative: 'name the sequence of events',
-  unlock: 'say what the change makes possible',
-  empower: 'say what the change makes possible',
-  elevate: 'say what the change makes possible',
-  supercharge: 'say what the change makes possible',
-  streamline: 'name the step you removed',
-  testament: 'cut the sentence, state the fact',
-  cornerstone: 'cut the sentence, state the fact',
-  backbone: 'cut the sentence, state the fact',
-  tapestry: 'cut the sentence, state the fact',
-};
-
-const VERBS = new Set(['leverage', 'facilitate', 'delve', 'unlock', 'empower', 'elevate', 'supercharge', 'streamline']);
-const ADJECTIVES = new Set(['load-bearing', 'verbatim', 'robust', 'seamless', 'holistic', 'elegant', 'crucial', 'vital', 'critical']);
-
-function wordForms(word) {
-  if (VERBS.has(word)) {
-    return word.endsWith('e')
-      ? [word, `${word}s`, `${word}d`, `${word.slice(0, -1)}ing`]
-      : [word, `${word}s`, `${word}ed`, `${word}ing`];
-  }
-  if (ADJECTIVES.has(word)) return [word];
-  if (word === 'story') return ['story', 'stories'];
-  return [word, `${word}s`];
-}
-
 // A match next to a letter, a digit, "_" or "-" is part of a longer word or
 // of a compound such as "key-value". The lint skips it.
 const WB_BEFORE = '(?<![\\p{L}\\p{N}_-])';
 const WB_AFTER = '(?![\\p{L}\\p{N}_-])';
-
-const BANNED_PATTERNS = [
-  ...Object.keys(WRITE_INSTEAD)
-    .filter((w) => !['surface', 'dive into', 'deep dive'].includes(w))
-    .map((w) => ({ word: w, forms: wordForms(w).map(escapeRegExp).join('|') })),
-  { word: 'dive into', forms: 'd(?:ive|ives|ived|iving|ove)\\s+into' },
-  { word: 'deep dive', forms: 'deep[\\s-]+dives?' },
-  // The rule bans "surface" only as a verb. A regex cannot tell the part of
-  // speech. So the lint flags a form of "surface" before a determiner or a
-  // pronoun ("surface the", "surfaced a", "surface it"). A noun use such as
-  // "the surface a user sees" is a false positive. A verb use with no object
-  // after it is a false negative.
-  {
-    word: 'surface',
-    forms:
-      '(?:surface[sd]?|surfacing)\\s+(?:the|a|an|this|that|these|those|it|them|its|their|each|every|all|any|some|our|your|my)',
-  },
-].map(({ word, forms }) => ({ word, re: new RegExp(`${WB_BEFORE}(?:${forms})${WB_AFTER}`, 'giu') }));
 
 const ADVERB = '(?:not|never|already|still|also|just|only|always|often|recently|now|yet|ever|all|both|long|since)';
 const IRREGULAR_PARTICIPLES = [
@@ -248,10 +180,6 @@ const ENABLE = /^\s*<!--\s*lint-enable\s*-->\s*$/;
 const CROSS_REFERENCE = new RegExp(`${WB_BEFORE}(intent|spec|plan)\\s+section${WB_AFTER}`, 'giu');
 const CROSS_REFERENCE_BACKWARD = new RegExp(`${WB_BEFORE}section\\s+\\d+(?:\\.\\d+)*\\s+of\\s+the\\s+(intent|spec|plan)${WB_AFTER}`, 'giu');
 const CROSS_REFERENCE_LINK = /^\s+\["(\d+(?:\.\d+)*)\.?\s+([^"\n]+?)"\]\(([^)\s]+)\)/;
-
-function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 function indentWidth(s) {
   let width = 0;
@@ -451,98 +379,6 @@ function checkEmDash(doc, add) {
     }
   }
   for (const line of lines) add(line, 'em-dash', EM_DASH_MESSAGE);
-}
-
-// The rules ban "key" and "space" as vague words, not as technical names.
-// Both checks are denylists: the lint flags only the uses below. They cost
-// some false positives. The "the space" rule also catches some interface and
-// storage sentences, such as "the space before the comma". The "the key to"
-// rule catches "the key to the vault".
-// "key" is a finding in these uses:
-// - after a form of "be" ("is key", "is key to"). It passes when a word that
-//   is not in FUNCTION_WORDS or KEY_PRAISE_NOUNS follows ("What is key
-//   rotation?");
-// - in "the key to" or "a key to" before a word from KEY_TO_NOUNS, such as
-//   "the" or "success". A word with a noun ending such as -tion after "to"
-//   is also a finding. Any other word after "to" passes, such as a verb
-//   ("uses the key to sign");
-// - directly before a word in KEY_PRAISE_NOUNS ("a key insight"). The set
-//   leaves out "results", because "key results" is the name of an OKR part.
-// "space" is a finding in these uses:
-// - after "in the" ("in the space");
-// - after a word in SPACE_DETERMINERS, such as "the" or "this", with at most
-//   one modifier between ("the DeFi space"). A modifier from
-//   SPACE_TECHNICAL_MODIFIERS passes ("the address space"). This use is a
-//   finding only before punctuation or before a word in FUNCTION_WORDS or
-//   AUXILIARY_VERBS. It is also a finding before a word that ends in a single
-//   "s", such as a verb ("the space grows"). Before another word, "space" is
-//   part of a name ("the space character").
-const BE_BEFORE = new RegExp(`(?<!\\p{L})(?:is|are|was|were|be|been|being)\\s+(?:${ADVERB}\\s+)?$`, 'iu');
-const KEY_PRAISE_NOUNS = new Set([
-  'insight', 'insights', 'step', 'steps', 'point', 'points', 'factor', 'factors', 'takeaway',
-  'takeaways', 'finding', 'findings', 'role', 'part', 'aspect', 'benefit', 'reason', 'driver',
-  'element', 'feature', 'decision', 'question', 'area', 'metric', 'milestone', 'difference',
-  'differences', 'learning', 'learnings', 'message', 'theme', 'priority', 'priorities', 'risk',
-  'risks', 'goal', 'goals', 'assumption', 'assumptions', 'consideration', 'considerations',
-  'requirement', 'requirements', 'stakeholder', 'stakeholders', 'change', 'changes', 'idea',
-  'ideas', 'component', 'components', 'concern', 'concerns', 'issue', 'issues', 'challenge',
-  'challenges', 'lesson', 'lessons', 'objective', 'objectives', 'outcome', 'outcomes', 'piece',
-  'pieces',
-]);
-const KEY_TO_NOUNS = new Set([
-  'the', 'a', 'an', 'our', 'your', 'their', 'its', 'this', 'that', 'these', 'those', 'any', 'every',
-  'success', 'growth', 'adoption', 'safety', 'security', 'trust', 'scale', 'profit',
-]);
-const AUXILIARY_VERBS = new Set([
-  'is', 'are', 'was', 'were', 'be', 'been', 'has', 'have', 'had', 'can', 'could', 'will', 'would',
-  'may', 'might', 'must', 'should', 'shall', 'does', 'do', 'did',
-]);
-const SPACE_DETERMINERS = new Set(['the', 'this', 'that', 'our', 'your', 'their', 'its']);
-const SPACE_TECHNICAL_MODIFIERS = new Set([
-  'address', 'disk', 'storage', 'name', 'key', 'search', 'memory', 'user', 'kernel', 'swap',
-  'heap', 'stack', 'color', 'vector', 'sample', 'state', 'parameter', 'free', 'white',
-]);
-
-function previousWords(masked, index, count) {
-  const words = masked.slice(Math.max(0, index - 60), index).match(/\p{L}+/gu) ?? [];
-  return words.slice(-count).map((w) => w.toLowerCase());
-}
-
-function isVagueKey(masked, m) {
-  if (m[0].toLowerCase() !== 'key') return false;
-  const end = m.index + m[0].length;
-  const next = nextWord(masked, end);
-  const before = masked.slice(Math.max(0, m.index - 30), m.index);
-  if (BE_BEFORE.test(before)) return !next || FUNCTION_WORDS.has(next) || KEY_PRAISE_NOUNS.has(next);
-  if (next && KEY_PRAISE_NOUNS.has(next)) return true;
-  if (next === 'to' && /(?<!\p{L})(?:the|a)\s+$/iu.test(before)) {
-    const after = nextWord(masked, masked.indexOf('to', end) + 2);
-    if (after && (KEY_TO_NOUNS.has(after) || /(?:tion|sion|ment|ness|ity|ance|ence|ship)$/.test(after))) return true;
-  }
-  return false;
-}
-
-function isVagueSpace(masked, m) {
-  if (m[0].toLowerCase() !== 'space') return false;
-  const [twoBack, oneBack] = previousWords(masked, m.index, 2);
-  const inThe = /(?<!\p{L})in\s+the\s+$/iu.test(masked.slice(Math.max(0, m.index - 10), m.index));
-  if (inThe) return true;
-  let determined = false;
-  if (oneBack && SPACE_DETERMINERS.has(oneBack)) determined = true;
-  else if (twoBack && SPACE_DETERMINERS.has(twoBack) && !SPACE_TECHNICAL_MODIFIERS.has(oneBack)) determined = true;
-  if (!determined) return false;
-  const next = nextWord(masked, m.index + m[0].length);
-  return !next || FUNCTION_WORDS.has(next) || AUXILIARY_VERBS.has(next) || /[^s]s$/.test(next);
-}
-
-function checkBannedWords(block, masked, add) {
-  for (const { word, re } of BANNED_PATTERNS) {
-    for (const m of masked.matchAll(re)) {
-      if (word === 'key' && !isVagueKey(masked, m)) continue;
-      if (word === 'space' && !isVagueSpace(masked, m)) continue;
-      add(block.lineAt(m.index), 'banned-word', `banned word "${m[0].replace(/\s+/g, ' ')}": ${WRITE_INSTEAD[word]}`);
-    }
-  }
 }
 
 function checkPresentPerfect(block, masked, add) {
@@ -913,7 +749,6 @@ export function lintText(text, { type, path = '<input>' } = {}) {
   for (const block of doc.blocks) {
     const codeMasked = maskCode(maskHtmlComments(block.text));
     const masked = maskLinks(codeMasked);
-    checkBannedWords(block, masked, add);
     checkPresentPerfect(block, masked, add);
     checkProgressive(block, masked, add);
     checkCrossReferences(block, codeMasked, context, add);

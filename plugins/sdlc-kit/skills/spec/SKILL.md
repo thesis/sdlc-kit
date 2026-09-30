@@ -46,7 +46,7 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
    ```
 
    When the lint lists findings, follow the retry rule above.
-7. Read the draft again against the rules that the lint cannot check. These rules are one word for one thing, no volatile counts, and the altitude rule above. Fix what you find. Then run the lint again.
+7. Read the draft again against the writing rules. Fix what you find. Then run the lint again.
 8. Create the Linear document with the `save_document` tool of the Linear MCP server:
    - Use the title `Spec: <name>`.
    - Give the document exactly one parent: the team or the project that the owner confirmed.
