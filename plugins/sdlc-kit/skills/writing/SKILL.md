@@ -165,12 +165,13 @@ The rules fall into tiers. Each document type must clear the tiers that the tabl
 
 The judge is the agent `${CLAUDE_PLUGIN_ROOT}/agents/writing-judge.md`. The section "The gate" says when the lint and the judge run.
 
+The judge of the completeness test is the agent `${CLAUDE_PLUGIN_ROOT}/agents/completeness-judge.md`. The plan skill runs it before the push of the plan.
+
 ## Additions
 
 These rules add to the copied rule.
 
 - **Cross-references.** A reference to another stage document names the document and the numbered section title. The quoted part is a link to that heading. In markdown the form is `spec section ["7. Deliverables"](spec.md#7-deliverables)`. In a Linear document the link goes to the heading of the other Linear document. The lint checks the form. For a local file, the lint also checks that the number and the title match a heading there.
-- **Closed stage.** When every pull request in the work order of the plan is merged, the stage directory is closed. No file in it changes again. A new need, a correction or a follow-up starts a new intent that links to the closed stage.
 - **Source every fact.** A number, an address or a behavior of an external system carries a link to its source.
 
 ## Durable records
@@ -210,6 +211,7 @@ The lint checks these rules:
 
 - Structure: the title line, the header fields, and the numbered template headings in order. The header fields are `Owner:`, `Status:` and `Linear:` for the intent, `Implements:`, `Owner:` and `Status:` for the spec, and `Implements:` for the plan. Linear has no status field for a document, so the `Status:` line is the status. Change it only when the owner says so.
 - Structure, header: an intent or a spec that comes from the export of a Linear document has one more line, `Exported: <document URL> · <ISO time>`. The line is optional, and the plan does not take it.
+- Structure, plan: the `Implements:` line has the form of the plan template, and each sha has 7 to 40 hex characters. The table of "2. Work order" and the subsections of each phase follow `${CLAUDE_PLUGIN_ROOT}/skills/plan/template.md`.
 - Structure, continued: required sections are not empty, and the executive summary has at most five bullets. In a section that the template numbers, every item has a number, or the section reads "None.".
 - Cross-references: the form above, and the target heading when the target is a local file. The form `section 7 of the spec` is a finding.
 - Em-dashes anywhere outside code.
