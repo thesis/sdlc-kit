@@ -12,9 +12,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `.claude-plugin/marketplace.json` at the root is the marketplace `thesis-sdlc-kit`. It lists one entry per plugin, with a relative `source`.
 - `plugins/` holds one plugin per directory. `plugins/sdlc-kit/` is the only plugin today.
-- A plugin holds `.claude-plugin/plugin.json`, `.mcp.json`, `skills/<name>/SKILL.md`, `agents/`, `hooks/` and `scripts/`.
+- A plugin holds `.claude-plugin/plugin.json`, `.mcp.json`, `config.json`, `skills/<name>/SKILL.md`, `agents/`, `hooks/` and `scripts/`.
+- `config.json` holds `feedbackTeam`, the Linear team that gets the issues of the feedback skill. The value is the same for every repository. No configuration file exists per repository.
 - `skills/intent/`, `skills/spec/` and `skills/plan/` each hold a `SKILL.md` with the procedure and a `template.md` with the numbered headings of the document.
 - `skills/steward/SKILL.md` holds the steward: it works the open threads on a Linear document or on a pull request.
+- `skills/feedback/` holds a `SKILL.md` with the procedure and a `template.md` with the body of the issue, one block per path.
 - `skills/writing/SKILL.md` holds the writing rules and nothing else: no lifecycle text and no description of the checks. It is not user-invocable.
 - `agents/writing-judge.md` is the writing judge: its rubric and its verdict format. It names the writing rules by their section titles and does not copy them.
 - `hooks/hooks.json` wires the gate, `hooks/document-gate.mjs`, to two PreToolUse matchers: `save_document` on any MCP server, and `Bash`. `hooks/document-gate.test.mjs` holds its tests.
@@ -60,7 +62,7 @@ node plugins/sdlc-kit/scripts/lint.mjs --type prose README.md CLAUDE.md
 - `github.mjs` wraps `gh api graphql`. It reads threads and posts replies. It never pushes, never resolves a thread and never writes repository contents. It passes each value to `gh` as a GraphQL variable, never inside the text of the query.
 - `SDLC_KIT_GH_BIN` replaces the `gh` binary of `github.mjs`. The tests of `github.mjs` put a fake `gh` script there. A `gh` failure is an error with the stderr of `gh`, never an empty list of threads.
 - The steward pushes its edits with a plain `git push`, so the gate judges them. Its replies go through `save_comment` or `github.mjs`, and no gate runs on them.
-- The steward and the feedback skill are not in the tree. Do not refer to a command that does not exist yet.
+- The feedback skill reads the team from `SDLC_KIT_FEEDBACK_TEAM` first, then from `feedbackTeam` in `config.json`. It creates the issue with `save_issue`. That call is not a `save_document` call, so no gate runs on a feedback issue.
 
 ## Writing rules for this repository
 

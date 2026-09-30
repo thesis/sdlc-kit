@@ -46,7 +46,9 @@ A stage of work starts with an intent, continues with a spec and ends with the b
 
 When comments pile up on an intent, a spec or a plan pull request, run `/sdlc-kit:steward <URL>`. Pass the URL of the Linear document or of the pull request. One run works every open thread at that moment and stops. Claude makes the copy edits, answers the questions with a source, and leaves each decision to the owner.
 
-Every document and every comment follows the writing rules of the plugin, based on Simplified Technical English. A save to Linear or a push of a stage document that breaks the rules is denied with the findings. Claude fixes the text and retries. After three failed attempts, Claude gives you the findings and the path of the draft.
+Every document and every comment follows the writing rules of the plugin, based on Simplified Technical English. A save to Linear or a push of a stage document that breaks the rules is denied with the findings. Claude fixes the text and retries. After three failed attempts, Claude gives you the findings and the path of the draft, and offers to file them with `/sdlc-kit:feedback`.
+
+Run `/sdlc-kit:feedback` to report a problem or an idea about the plugin. A reporter with no GitHub account can use it too, because the report goes to Linear only. The issue lands in the Linear team that the plugin names, and that team must exist.
 
 ### All commands
 
@@ -54,5 +56,6 @@ Every document and every comment follows the writing rules of the plugin, based 
 - `/sdlc-kit:spec <Linear URL of the intent>` turns an agreed intent into a spec and creates it as a Linear document.
 - `/sdlc-kit:plan <Linear URL of the spec>` freezes the agreed intent and spec, exports them to the repository and writes the plan in a draft pull request.
 - `/sdlc-kit:steward <Linear URL of an intent or a spec | GitHub URL of a pull request>` works the open comment threads and leaves each decision to the owner.
+- `/sdlc-kit:feedback` files a problem report or an improvement idea about the plugin as a Linear issue.
 
 The plugin also holds the `writing` skill and the `writing-judge` agent. Neither has a command. Claude reads the skill before it writes a document or a comment, and the gate runs the agent.

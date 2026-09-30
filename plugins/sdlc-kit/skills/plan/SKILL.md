@@ -27,7 +27,7 @@ The input is the Linear URL of the spec: $ARGUMENTS
 
 ## Retry
 
-When the lint lists findings, or the gate denies a save or a push, fix the lines or the findings that it names. Then run the lint again, or repeat the call. Stop after three failed attempts. Give the owner or the engineer the outstanding findings and the path of the file. Then wait for their decision. A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
+When the lint lists findings, or the gate denies a save or a push, fix the lines or the findings that it names. Then run the lint again, or repeat the call. Stop after three failed attempts. Give the owner or the engineer the outstanding findings and the path of the file. Offer to file the findings with `/sdlc-kit:feedback`. Then wait for their decision. A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
 
 ## Procedure
 
