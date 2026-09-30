@@ -8,7 +8,7 @@
     {
       "name": "sdlc-kit",
       "source": "./plugins/sdlc-kit",
-      "description": "Skills, templates and writing rules for the intent and the spec. A writing judge and a gate check each save and push of a stage document."
+      "description": "Skills, templates and writing rules for the intent, the spec and the plan. A writing judge and a gate check each save and push of a stage document, and a completeness judge tests the plan."
     }
   ]
 }
