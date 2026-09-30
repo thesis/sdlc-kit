@@ -25,9 +25,11 @@ if (isMain && process.env.SDLC_KIT_GATE) process.exit(0);
 // A static import that fails would stop the hook before it can deny, so the
 // lint loads here and a load error denies each call.
 let lintText;
+let stripAnchors;
 let lintLoadError = null;
 try {
   ({ lintText } = await import('../scripts/lint.mjs'));
+  ({ stripAnchors } = await import('../scripts/linear.mjs'));
 } catch (e) {
   lintLoadError = e;
 }
@@ -596,8 +598,9 @@ const REPEAT_SAVE = 'Fix the named lines. Then repeat the call.';
 const REPEAT_JUDGE = 'Fix each finding. Then repeat the call.';
 
 /**
- * Gates one document: the lint first, then the judge. A lint finding denies
- * with no judge run. A judge verdict with a finding, or with a FAIL, denies.
+ * Gates one document: the lint first, then the judge. The gate removes the
+ * comment anchors of Linear first, so the judge reads the text without them.
+ * A lint finding denies with no judge run. A judge verdict with a finding, or with a FAIL, denies.
  * Every error of the judge run denies too. The judge run gets the time left
  * until `deadline`, and with less than `floorMs` left the gate denies with no
  * judge run. Returns the decision, the reason of a denial, the stage that
@@ -605,7 +608,7 @@ const REPEAT_JUDGE = 'Fix each finding. Then repeat the call.';
  */
 export function gate(text, { type, name, env = process.env, deadline = Date.now() + GATE_BUDGET_MS, floorMs = JUDGE_FLOOR_MS } = {}) {
   if (lintLoadError) throw new Error(`the lint did not load: ${lintLoadError.message}`);
-  text = stripBom(text);
+  text = stripAnchors(stripBom(text));
   const findings = lintText(text, { type, path: name });
   if (findings.length) {
     const lines = findings.map((f) => `${f.path}:${f.line}: ${f.rule}: ${f.message}`);

@@ -27,7 +27,7 @@ The input is the Linear URL of the spec: $ARGUMENTS
 
 ## Retry
 
-When the lint lists findings, or the gate denies a save or a push, fix the lines or the findings that it names. Then run the lint again, or repeat the call. Stop after three failed attempts. Give the owner or the engineer the outstanding findings and the path of the file. Then wait for their decision. A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
+When the lint lists findings, or the gate denies a save or a push, fix the lines or the findings that it names. Then run the lint again, or repeat the call. Stop after three failed attempts. Give the owner or the engineer the outstanding findings and the path of the file. Offer to file the findings with `/sdlc-kit:feedback`. Then wait for their decision. A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
 
 ## Procedure
 
@@ -85,7 +85,8 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
     ```
 
     When the lint lists findings, follow the retry rule above.
-27. Run the completeness check with the Agent tool. Spawn a subagent of the type `general-purpose`, never a fork, with the prompt below and nothing else. Replace the two paths. The subagent has a fresh context, so it sees only the files.
+27. Read the plan again against the writing rules. Fix what you find. Then run the lint again.
+28. Run the completeness check with the Agent tool. Spawn a subagent of the type `general-purpose`, never a fork, with the prompt below and nothing else. Replace the two paths. The subagent has a fresh context, so it sees only the files.
 
     ```
     You test one plan for completeness. An agent that builds from the plan has a fresh context: it has the plan, the two documents that the plan implements and the repository, and nothing else. List each item that such an agent cannot determine. Zero items is the pass.
@@ -109,14 +110,15 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
     The verdict is FAIL when an item exists and PASS when the list is empty.
     ```
 
-28. When the verdict lists items, fix the plan. Then run the check again. Do not do more than three runs. After the third failed run, give the engineer the outstanding items and the path of the plan. Then wait for the engineer to decide.
-29. Commit the plan. Then push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule above.
-30. Mark the pull request ready with `gh pr ready`.
-31. Give the owner the URL of the pull request.
+29. When the verdict lists items, fix the plan. Then run the check again. Do not do more than three runs. After the third failed run, give the engineer the outstanding items and the path of the plan. Then wait for the engineer to decide.
+30. Commit the plan. Then push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule above.
+31. Mark the pull request ready with `gh pr ready`.
+32. Give the owner the URL of the pull request.
 
 ## During the build
 
 - Each phase lands in its own pull request.
 - A code pull request edits the plan only when the work found something unexpected that changes the plan itself.
 - Such an edit is an entry in "7. What changed", in the form of the template, and the correction to the phase, the spec or the intent. The gate judges the changed documents on the push.
+- Run `/sdlc-kit:steward <URL of the pull request>` to work the review threads on a pull request. The steward makes the copy edits and gives answers to questions. It leaves each decision to the owner.
 - When the last phase merges, the stage is done. Nothing in it changes again. A new need starts a new intent.

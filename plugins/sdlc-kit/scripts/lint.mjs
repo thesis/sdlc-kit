@@ -2,6 +2,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { stripAnchors } from './linear.mjs';
 
 export const STATUSES = ['draft', 'in review', 'agreed', 'frozen'];
 
@@ -741,7 +742,9 @@ export function lintText(text, { type, path = '<input>' } = {}) {
   if (!TYPES.includes(type)) throw new Error(`unknown type "${type}"`);
   const findings = [];
   const add = (line, rule, message) => findings.push({ path, line, rule, message });
-  const doc = parse(text, { honorDisable: type === 'prose' });
+  // A document that the Linear MCP returned wraps commented text in anchors.
+  // They are not part of the text, so the lint removes them before any check.
+  const doc = parse(stripAnchors(text), { honorDisable: type === 'prose' });
   const context = { path: path === '<input>' ? null : path, headings: new Map() };
 
   if (type !== 'prose') checkStructure(doc, type, add);

@@ -12,12 +12,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `.claude-plugin/marketplace.json` at the root is the marketplace `thesis-sdlc-kit`. It lists one entry per plugin, with a relative `source`.
 - `plugins/` holds one plugin per directory. `plugins/sdlc-kit/` is the only plugin today.
-- A plugin holds `.claude-plugin/plugin.json`, `.mcp.json`, `skills/<name>/SKILL.md`, `agents/`, `hooks/` and `scripts/`.
+- A plugin holds `.claude-plugin/plugin.json`, `.mcp.json`, `config.json`, `skills/<name>/SKILL.md`, `agents/`, `hooks/` and `scripts/`.
+- `config.json` holds `feedbackTeam`, the Linear team that gets the issues of the feedback skill. The value is the same for every repository. No configuration file exists per repository.
 - `skills/intent/`, `skills/spec/` and `skills/plan/` each hold a `SKILL.md` with the procedure and a `template.md` with the numbered headings of the document.
+- `skills/steward/SKILL.md` holds the steward: it works the open threads on a Linear document or on a pull request.
+- `skills/feedback/` holds a `SKILL.md` with the procedure and a `template.md` with the body of the issue, one block per path.
 - `skills/writing/SKILL.md` holds the writing rules and nothing else: no lifecycle text and no description of the checks. It is not user-invocable.
 - `agents/writing-judge.md` is the writing judge: its rubric and its verdict format. It names the writing rules by their section titles and does not copy them.
 - `hooks/hooks.json` wires the gate, `hooks/document-gate.mjs`, to two PreToolUse matchers: `save_document` on any MCP server, and `Bash`. `hooks/document-gate.test.mjs` holds its tests.
-- `scripts/lint.mjs` is the lint. `scripts/linear.mjs` holds the text helpers for a Linear document: the export and the comment threads. It makes no network call. Each script has its tests in a `.test.mjs` file next to it.
+- `scripts/lint.mjs` is the lint. `scripts/linear.mjs` holds the text helpers for a Linear document: the export and the comment threads. It makes no network call. `scripts/github.mjs` reads the unresolved review threads of a pull request and posts a reply in a thread, through `gh`. Each script has its tests in a `.test.mjs` file next to it.
 - The scripts and the hook are plain Node 22 with no dependencies and no `package.json`.
 - A skill refers to a file of the plugin through `${CLAUDE_PLUGIN_ROOT}`, in its body and in `allowed-tools`.
 
@@ -44,8 +47,9 @@ node plugins/sdlc-kit/scripts/lint.mjs --type prose README.md CLAUDE.md
 ## How the parts fit
 
 - The `TEMPLATES` object in `lint.mjs` holds the headings, the header fields and the numbered sections of each document type. It must match `skills/<type>/template.md`. A test fills each template the way the skills do and lints it. A change to one side fails the tests until the other side follows.
-- The intent and spec skills call the lint in their procedure, and their `allowed-tools` line permits only that command. The `allowed-tools` line of the plan skill permits `Read`, `Glob`, `Grep`, `Agent` and the scripts of the plugin. It permits no git command, no `gh` command and no MCP tool. The gate runs the lint again on each save of an intent or a spec, and on each push of a stage document. A Linear document with a `Plan:` title passes the gate, because the plan lives only in git.
+- The intent and spec skills call the lint in their procedure, and their `allowed-tools` line permits only that command. The `allowed-tools` line of the plan skill permits `Read`, `Glob`, `Grep`, `Agent` and the scripts of the plugin. It permits no git command, no `gh` command and no MCP tool. The `allowed-tools` line of the steward skill is the same, with no `Agent`. The gate runs the lint again on each save of an intent or a spec, and on each push of a stage document. A Linear document with a `Plan:` title passes the gate, because the plan lives only in git.
 - The gate imports `lintText` from `lint.mjs`. A lint finding denies the call with no model call.
+- The lint and the gate remove the `<linear-comment>` anchors of Linear before they read a document. So a skill can lint and save the content that `get_document` returned, with its anchors in place.
 - The gate composes the judge for each run. It passes the frontmatter and body of `agents/writing-judge.md`, then the body of `skills/writing/SKILL.md`, to a headless `claude -p` with `--agents`. The run has `--setting-sources ""` and starts in the temp directory, so it loads no CLAUDE.md, no memory and no git history.
 - The judge run sets `SDLC_KIT_GATE=1`. A gate that starts with this variable set exits at once, so a hook inside the judge run does nothing.
 - `SDLC_KIT_CLAUDE_BIN` replaces the `claude` binary of the judge run. `SDLC_KIT_JUDGE_MODEL` sets its model. `SDLC_KIT_GATE_LOG` names a file that gets one line per decision.
@@ -55,7 +59,10 @@ node plugins/sdlc-kit/scripts/lint.mjs --type prose README.md CLAUDE.md
 - The documents of a push are the markdown files under `.sdlc-kit/` that its new commits change and that exist at the pushed ref. The gate lists them with `git log --diff-merges=combined <local ref> --not --remotes`, so a change that a merge commit makes itself counts too. A new commit is one that no remote-tracking ref of any remote holds, so the list depends on the last fetch. Before a first push to an empty remote, every commit is new, and the gate judges every stage document at the local ref.
 - The judge run has `--strict-mcp-config`, so it loads no MCP server. Without it the run loads the instructions of the claude.ai connectors of the user, and its context grows by about a third.
 - The plan skill runs its completeness check with the Agent tool. The subagent is `general-purpose`, never a fork, and gets the rubric inline from the skill, so it has a fresh context. The gate does not run it. The time of the check grows with the repository and has no bound. The gate budget must cover the writing judge of every document in a push.
-- The steward and the feedback skill are not in the tree. Do not refer to a command that does not exist yet.
+- `github.mjs` wraps `gh api graphql`. It reads threads and posts replies. It never pushes, never resolves a thread and never writes repository contents. It passes each value to `gh` as a GraphQL variable, never inside the text of the query.
+- `SDLC_KIT_GH_BIN` replaces the `gh` binary of `github.mjs`. The tests of `github.mjs` put a fake `gh` script there. A `gh` failure is an error with the stderr of `gh`, never an empty list of threads.
+- The steward pushes its edits with a plain `git push`, so the gate judges them. Its replies go through `save_comment` or `github.mjs`, and no gate runs on them.
+- The feedback skill reads the team from `SDLC_KIT_FEEDBACK_TEAM` first, then from `feedbackTeam` in `config.json`. It creates the issue with `save_issue`. That call is not a `save_document` call, so no gate runs on a feedback issue.
 
 ## Writing rules for this repository
 
