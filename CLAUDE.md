@@ -13,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `.claude-plugin/marketplace.json` at the root is the marketplace `thesis-sdlc-kit`. It lists one entry per plugin, with a relative `source`.
 - `plugins/` holds one plugin per directory. `plugins/sdlc-kit/` is the only plugin today.
 - A plugin holds `.claude-plugin/plugin.json`, `.mcp.json`, `config.json`, `skills/<name>/SKILL.md`, `agents/`, `hooks/` and `scripts/`.
-- `config.json` holds `feedbackTeam`, the Linear team that gets the issues of the feedback skill. The value is the ID of the Engineering team under Studio, because a name such as `Engineering` can match more than one team. The value is the same for every repository. No configuration file exists per repository.
+- `config.json` holds `feedbackTeam`, the Linear team that gets the issues of the feedback skill. The value is a team ID, because a team name can match more than one team. The value is the same for every repository. No configuration file exists per repository.
 - `skills/intent/`, `skills/spec/` and `skills/plan/` each hold a `SKILL.md` with the procedure and a `template.md` with the numbered headings of the document.
 - `skills/steward/SKILL.md` holds the steward: it works the open threads on a Linear document or on a pull request.
 - `skills/feedback/` holds a `SKILL.md` with the procedure and a `template.md` with the body of the issue, one block per path.
