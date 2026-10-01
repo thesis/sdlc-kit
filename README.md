@@ -48,7 +48,7 @@ When comments pile up on an intent, a spec or a plan pull request, run `/sdlc-ki
 
 Every document and every comment follows the writing rules of the plugin, based on Simplified Technical English. A save to Linear or a push of a stage document that breaks the rules is denied with the findings. Claude fixes the text and retries. After three failed attempts, Claude gives you the findings and the path of the draft, and offers to file them with `/sdlc-kit:feedback`.
 
-Run `/sdlc-kit:feedback` to report a problem or an idea about the plugin. A reporter with no GitHub account can use it too, because the report goes to Linear only. The issue lands in the Linear team that the plugin names, and that team must exist.
+Run `/sdlc-kit:feedback` to report a problem or an idea about the plugin. A reporter with no GitHub account can use it too, because the report goes to Linear only. The issue lands in the triage of the Linear team that the plugin names, and that team must exist.
 
 ### All commands
 
