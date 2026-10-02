@@ -44,7 +44,7 @@ A report holds no body of an intent, a spec or a plan. A complaint about a writi
    - the target repository: its name from the conversation when the report is about a plan or a push, else `None`.
 5. Find the team. Run `printenv SDLC_KIT_FEEDBACK_TEAM`. When it prints a value, that value is the team. Otherwise the team is the `feedbackTeam` field of `${CLAUDE_PLUGIN_ROOT}/config.json`. Do not ask anyone for the team.
 6. Check the team with the `get_team` tool of the Linear MCP server. When the team does not exist, stop. Tell the reporter the name of the team and where the name comes from: the variable `SDLC_KIT_FEEDBACK_TEAM` or `config.json`.
-7. Write the title in the form `Bug: <one line>` for a problem report, or `Idea: <one line>` for an improvement idea.
+7. Write the title as one line that names the problem or the idea. Do not start the title with a type, such as `Bug:` or `Idea:`. The labels of step 12 give the type.
 8. Search the team for the same report with the `list_issues` tool. Pass the `team` and the words of the title as `query`. When a match exists, show the reporter its title and its URL. Offer a comment on that issue instead of a new issue.
 9. Write the body in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
    - Keep the block of the path of the report, and remove the other block.
@@ -58,6 +58,6 @@ A report holds no body of an intent, a spec or a plan. A complaint about a writi
 
     When the lint lists findings, fix the lines that it names. Then run the lint again.
 11. When the reporter chose the comment of step 8, post the draft with the `save_comment` tool. Pass the `issueId` of the match and the draft as `body`. Then go to step 14.
-12. Check the label with the `list_issue_labels` tool. Pass the `team` and the `name`: `Bug` for a problem report, `Idea` for an improvement idea.
-13. Create the issue with the `save_issue` tool. Pass the `team`, the `title`, the draft as `description`, `triage` as `state`, and the label in `labels`. When the team has no such label, create the issue with no `labels`. Do the same when the save fails because of the label. Then tell the reporter that the issue has no label. When the save fails because the team has no triage state, create the issue with no `state`. Then tell the reporter that the issue is not in triage. No hook of this plugin judges the issue.
+12. Check the two labels of the issue with the `list_issue_labels` tool. Pass the `team` and the `name` of one label in each call. The first label is `Feedback` for every issue. The second label is `Bug` for a problem report, or `Improvement` for an improvement idea.
+13. Create the issue with the `save_issue` tool. Pass the `team`, the `title`, the draft as `description`, `triage` as `state`, and the labels that the team has in `labels`. When the team has neither label, create the issue with no `labels`. Do the same when the save fails because of a label. Then tell the reporter which label the issue does not have. When the save fails because the team has no triage state, create the issue with no `state`. Then tell the reporter that the issue is not in triage. No hook of this plugin judges the issue.
 14. Give the reporter the URL of the issue.
