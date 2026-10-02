@@ -53,7 +53,7 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
    - Put the draft in `content` as markdown, with its frontmatter.
 
    The gate of the plugin runs on the save. When it denies the save, follow the retry rule above.
-9. Post a first comment on the document with the `save_comment` tool. Pass the `documentId` of the document. In the comment, list the open problems. Ask the named stakeholders for answers, with an @mention for each one. The comment follows the writing rules.
+9. Post one comment for each open problem with the `save_comment` tool. Pass the `documentId` of the document. Address each comment to the owner of the problem with an @mention. Each comment follows the writing rules.
 10. Give the owner the URL of the document.
 
 ## After the save

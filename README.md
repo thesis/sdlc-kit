@@ -4,7 +4,7 @@ thesis/sdlc-kit holds the components of the AI-native software development proce
 
 ## Claude plugin
 
-The `sdlc-kit` plugin gives Claude the skills, the document templates and the writing rules for the intent, the spec and the plan. Claude writes the intent and the spec as Linear documents, in the template of the plugin, and posts the open questions as comments on them. Claude writes the plan in a pull request in the repository where the feature lands.
+The `sdlc-kit` plugin gives Claude the skills, the document templates and the writing rules for the intent, the spec and the plan. Claude writes the intent and the spec as Linear documents, in the template of the plugin. It opens one comment thread per open problem or decision on them. Claude writes the plan in a pull request in the repository where the feature lands.
 
 ### Install
 
@@ -52,7 +52,7 @@ A stage of work starts with an intent, continues with a spec and ends with the b
 
 Each document starts with a frontmatter of fields, such as `owner` and `relates`. The skills write and update these fields. Do not edit the frontmatter by hand. No field holds the state of a document. You decide when a document is ready for the next command.
 
-1. Run `/sdlc-kit:intent`. Answer the questions, one at a time. Say "unknown" when you do not know. You get a Linear document `Intent: <name>`, with a first comment that lists the open problems and @mentions the people who can answer them.
+1. Run `/sdlc-kit:intent`. Answer the questions, one at a time. Say "unknown" when you do not know. You get a Linear document `Intent: <name>`, with one comment per open problem, addressed to the person who can answer it.
 2. Discuss each open problem in its comment thread. Write the decision into the intent, then resolve the thread. When the intent is ready, go to step 3. Each open problem then has an answer, or it goes to the spec as an open problem.
 3. Run `/sdlc-kit:spec <Linear URL of the intent>`. The command looks for a spec of the intent first. The search is best effort. When it finds one, the command asks you what to do. When it finds none, you check that no spec exists. The command reports each open thread on the intent and goes on. Confirm the list of open problems and decisions that Claude shows you. Answer the questions that its research cannot settle. You get a Linear document `Spec: <name>`, linked to the intent, with one comment per open decision. The intent links the spec.
 4. Settle each open decision in its comment thread. Write the decision into the spec, then resolve the thread. When the spec is ready, go to step 5.
