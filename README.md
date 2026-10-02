@@ -6,51 +6,45 @@ thesis/sdlc-kit holds the components of the AI-native software development proce
 
 The `sdlc-kit` plugin gives Claude the skills, the document templates and the writing rules for the intent, the spec and the plan. Claude writes the intent and the spec as Linear documents, in the template of the plugin, and posts the open questions as comments on them. Claude writes the plan in a pull request in the repository where the feature lands.
 
-### Install in Claude Code
+### Install
 
-Run these commands to add the marketplace and install the plugin:
+#### Claude Code
 
 ```
 claude plugin marketplace add thesis/sdlc-kit
 claude plugin install sdlc-kit@thesis-sdlc-kit
 ```
 
-The plugin installs for your user by default. For an install that covers every person in a repository, run this command in the repository:
+Turn on auto-update. Run `/plugin`, open the **Marketplaces** tab, select `thesis-sdlc-kit` and select **Enable auto-update**.
 
-```
-claude plugin install sdlc-kit@thesis-sdlc-kit --scope project
-```
+Log in to Linear before the first use. Open `/mcp` and select the Linear server.
 
-The plugin adds the Linear MCP server. Log in to Linear before the first use. To log in, open the `/mcp` menu in Claude Code. Then select the Linear server.
+#### Claude App
 
-### Install in the Claude app
+1. Open **Customize > Plugins**.
+2. Select **Add > Add marketplace** and enter `thesis/sdlc-kit`.
+3. Add `sdlc-kit`.
+4. Turn on **Sync automatically** for the marketplace.
+5. Open the **Connectors** tab of the plugin and connect Linear.
 
-The Claude app loads plugins in Cowork. Plain Chat does not load plugins.
+The Claude App runs the plugin in Chat and in Cowork. Chat does not run the hook that checks each document against the writing rules. Cowork and Claude Code run it.
 
-1. Open the plugin page in Cowork.
-2. Add the marketplace `thesis/sdlc-kit`.
-3. Install `sdlc-kit` from the marketplace.
+### Updates
 
-As an alternative to the marketplace, upload the plugin to Cowork as a package.
+#### Claude Code
 
-### Update in Claude Code
+Auto-update is the recommended way. Claude Code gets a new version when a session starts, and the next session loads it.
 
-Run these commands to get the latest version of the marketplace and update the plugin:
+To update on demand, run these commands. Then run `/reload-plugins` in each open session.
 
 ```
 claude plugin marketplace update thesis-sdlc-kit
 claude plugin update sdlc-kit@thesis-sdlc-kit
 ```
 
-For an install with `--scope project`, add `--scope project` to the second command.
+#### Claude App
 
-The update applies to new sessions. In a session that is open, run `/reload-plugins` to load the new version.
-
-Auto-update is off by default for a marketplace that `claude plugin marketplace add` adds. To turn it on, run `/plugin` in a session and open the **Marketplaces** tab. Select `thesis-sdlc-kit`, then select **Enable auto-update**. Claude Code then updates the plugin after a session starts, and the next session loads the new version.
-
-### Update in the Claude app
-
-Cowork gets updates from the marketplace that the plugin came from. To get the latest version now, open the plugin page in Cowork and select **Check for updates** on the marketplace `thesis/sdlc-kit`. To get each new version with no action, turn on **Sync automatically** for that marketplace.
+**Sync automatically** is the recommended way. To update on demand, open **Customize > Plugins** and select **Check for updates** on the marketplace.
 
 ### Usage
 
