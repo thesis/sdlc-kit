@@ -36,10 +36,10 @@ A report holds no body of an intent, a spec or a plan. A complaint about a writi
    3. why the current behavior is not enough.
 
    Stop the questions about a field when it has one concrete answer. Put the denial text in a code block, with no edits.
-4. Gather the context without a question:
+4. Ask which surface the reporter uses: Claude Code or Cowork. Do not find the surface from `claude --version`, because Cowork also has the `claude` binary. Then gather the rest of the context without a question:
    - the plugin version: the `version` field of `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`;
-   - the surface: `Claude Code` when `claude --version` prints a version, else `Cowork`;
-   - the Claude Code version: the output of `claude --version`, or `None` in Cowork;
+   - the surface: the answer of the reporter;
+   - the Claude Code version: the output of `claude --version` when the surface is Claude Code, else `None`;
    - the active skill: the sdlc-kit skill that was active in the conversation, or `None`;
    - the target repository: its name from the conversation when the report is about a plan or a push, else `None`.
 5. Find the team. Run `printenv SDLC_KIT_FEEDBACK_TEAM`. When it prints a value, that value is the team. Otherwise the team is the `feedbackTeam` field of `${CLAUDE_PLUGIN_ROOT}/config.json`. Do not ask anyone for the team.
