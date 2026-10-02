@@ -72,7 +72,7 @@ const GIT_INTENT = INTENT.replace(
 const GIT_SPEC = `---
 type: spec
 owner: Ana Nowak
-status: frozen
+status: approved
 relates: https://linear.app/thesis/document/intent-1
 exported: https://linear.app/thesis/document/spec-1 · 2026-09-30T00:00:00Z
 ---

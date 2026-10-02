@@ -1,7 +1,7 @@
 ---
 type: intent
 owner: <name>
-status: draft | review | frozen
+status: draft | review | approved
 ---
 
 # Intent: <name>

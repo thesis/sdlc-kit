@@ -24,7 +24,7 @@ const TITLE = 'Intent: Weekly export of vault deposits';
 const INTENT = `\`\`\`yaml
 type: intent
 owner: Ana Nowak
-status: frozen
+status: approved
 \`\`\`
 
 ## 1. Executive summary
@@ -175,7 +175,7 @@ describe('export', () => {
       '---',
       'type: intent',
       'owner: Ana Nowak',
-      'status: frozen',
+      'status: approved',
       `exported: ${URL} · ${AT}`,
       '---',
       '',
@@ -225,7 +225,7 @@ describe('export', () => {
   });
 
   for (const [name, text, title, message] of [
-    ['a document of the old form', `# Intent: X\nOwner: A · Status: frozen\nLinear: ${URL}\n`, TITLE, /no frontmatter/],
+    ['a document of the old form', `# Intent: X\nOwner: A · Status: approved\nLinear: ${URL}\n`, TITLE, /no frontmatter/],
     ['a plan', '---\ntype: plan\nrelates: spec.md, intent.md\n---\n', 'Plan: X', /type is "plan"; only an intent or a spec exports/],
     ['a frontmatter with an error', '```yaml\ntype: intent\nowner: [A]\n```\n', TITLE, /^Error: line 3: the value of "owner"/],
     ['a title of the other type', INTENT, 'Spec: Weekly export', /names a spec, but the frontmatter type is "intent"/],

@@ -1,7 +1,7 @@
 ---
 type: spec
 owner: <name>
-status: draft | review | frozen
+status: draft | review | approved
 relates: <url>
 ---
 

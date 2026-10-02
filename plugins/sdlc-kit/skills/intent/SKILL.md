@@ -56,6 +56,6 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
 9. Post a first comment on the document with the `save_comment` tool. Pass the `documentId` of the document. In the comment, list the open problems. Ask the named stakeholders for answers, with an @mention for each one. The comment follows the writing rules.
 10. Give the owner the URL of the document.
 
-## When the intent is frozen
+## When the intent is approved
 
-The spec skill freezes the intent: it sets the `status` field to `frozen` when it creates the spec. It does so only when the status is `review` and every comment thread on the intent is resolved. At that point each open problem has an answer, or it goes to the spec as an open problem. Nobody sets the status by hand.
+The spec skill approves the intent: it sets the `status` field to `approved` before it writes the spec. It does so only when the status is `review` and every comment thread on the intent is resolved. At that point each open problem has an answer, or it goes to the spec as an open problem. Nobody sets the status by hand.

@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Freezes a spec whose status is review, exports it and its frozen intent to the target repository, and writes the plan in the sdlc-kit template, in one draft pull request. Use it when every comment thread on the spec is resolved and someone has the Linear URL of the spec.
+description: Approves a spec whose status is review, exports the spec and its approved intent to the target repository, and writes the plan in the sdlc-kit template, in one draft pull request. Use it when every comment thread on the spec is resolved and someone has the Linear URL of the spec.
 argument-hint: "<Linear URL of the spec>"
 allowed-tools: Read Glob Grep Agent Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/*)
 ---
@@ -11,7 +11,7 @@ The plan says how agents build what the spec describes. Its first readers are th
 
 The output is one branch and one draft pull request in the target repository, the repository where the feature lands. The pull request adds the stage directory `.sdlc-kit/YYYY-MM-<slug>/` with `intent.md`, `spec.md` and `plan.md`. The output never goes to thesis/sdlc-kit.
 
-Run the skill when every comment thread on the spec in Linear is resolved. The skill stops when the working directory is not a git checkout with a GitHub remote. It also stops when the `status` field of the spec is not `review`, or when the `status` field of the intent is not `frozen`. A thread on the spec that is open stops it too.
+Run the skill when every comment thread on the spec in Linear is resolved. The skill stops when the working directory is not a git checkout with a GitHub remote. It also stops when the `status` field of the spec is not `review`, or when the `status` field of the intent is not `approved`. A thread on the spec that is open stops it too.
 
 The input is the Linear URL of the spec: $ARGUMENTS
 
@@ -35,7 +35,7 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
 2. Read the spec with the `get_document` tool of the Linear MCP server.
 3. Read every comment on the spec with the `list_comments` tool. Pass the `documentId` of the spec. When `hasNextPage` is true, read the next pages too.
 4. Stop when the `status` field in the frontmatter of the spec is not `review`. Tell the owner the status that you found.
-5. Follow the URL in the `relates` field of the spec to the intent. Read the intent and its comments in the same way. Stop when the `status` field of the intent is not `frozen`. Tell the owner the status that you found, and that `/sdlc-kit:spec` freezes the intent.
+5. Follow the URL in the `relates` field of the spec to the intent. Read the intent and its comments in the same way. Stop when the `status` field of the intent is not `approved`. Tell the owner the status that you found, and that `/sdlc-kit:spec` approves the intent.
 6. Write the content of each document to a scratch file outside the repository, with no edits. Write each comment list to a scratch file in the same way.
 7. Group the comments of each document into threads:
 
@@ -44,13 +44,13 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
    ```
 
 8. A thread is resolved when `resolved` or `anchorResolved` is true. Every other thread is open. Stop when a thread on the spec is open. Name each open thread by the first words of its first comment. Ask the owner to settle it and resolve it.
-9. Check each resolved thread on the spec against the text of the spec. The outcome of each resolved thread must be in the text. The spec skill did this check on the intent when it froze the intent.
+9. Check each resolved thread on the spec against the text of the spec. The outcome of each resolved thread must be in the text. The spec skill did this check on the intent before it approved the intent.
 10. Check each open decision of the spec and each open problem of the intent for an answer in the text. An open problem of the intent can also point at the spec.
 11. Stop when the text lacks the outcome of a resolved thread, or an open decision has no answer. Name each such thread or decision. Ask the owner to write the outcome into the spec. Do not write it yourself.
 12. Propose the stage directory name `.sdlc-kit/YYYY-MM-<slug>/` from the current month and the title of the spec. Wait for the owner to accept or change it.
 13. Run `git fetch`.
 14. Create the branch from the default branch of the remote. The name follows the rules of the target repository.
-15. In the content of the spec, set the `status` field of the frontmatter to `frozen`. Change nothing else. The intent is frozen already, so its content gets no change.
+15. In the content of the spec, set the `status` field of the frontmatter to `approved`. Change nothing else. The intent is approved already, so its content gets no change.
 16. Save the spec with the `save_document` tool: the `id` of the spec and the full content in `content`. The gate of the plugin runs on the save. When it denies the save, follow the retry rule above.
 17. Export each document into the stage directory, the intent to `intent.md` and the spec to `spec.md`. Pass the title of the Linear document as `--title`. The export writes the frontmatter between `---` lines with the `exported` field, then the title line `# Intent: <name>` or `# Spec: <name>`:
 
@@ -58,7 +58,7 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
     node ${CLAUDE_PLUGIN_ROOT}/scripts/linear.mjs export --url <document URL> --title <document title> <content.md>
     ```
 
-18. Run the lint on both files, with `--form git` and with `--type intent` and `--type spec`. Do not edit the frozen text. When the lint lists findings, stop. Give the owner the findings and the path of each file. Then wait for the owner to decide.
+18. Run the lint on both files, with `--form git` and with `--type intent` and `--type spec`. Do not edit the approved text. When the lint lists findings, stop. Give the owner the findings and the path of each file. Then wait for the owner to decide.
 19. Commit `intent.md` and `spec.md` as the first commit of the branch.
 20. Push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule above.
 21. Open the pull request as a draft with `gh pr create --draft`.

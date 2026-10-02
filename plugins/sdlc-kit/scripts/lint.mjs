@@ -4,7 +4,7 @@ import { basename, dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readFrontmatter, stripAnchors } from './linear.mjs';
 
-export const STATUSES = ['draft', 'review', 'frozen'];
+export const STATUSES = ['draft', 'review', 'approved'];
 export const FORMS = ['linear', 'git'];
 
 // The frontmatter fields and the top-level headings of each stage template,
