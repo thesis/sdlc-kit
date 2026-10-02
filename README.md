@@ -33,6 +33,25 @@ The Claude app loads plugins in Cowork. Plain Chat does not load plugins.
 
 As an alternative to the marketplace, upload the plugin to Cowork as a package.
 
+### Update in Claude Code
+
+Run these commands to get the latest version of the marketplace and update the plugin:
+
+```
+claude plugin marketplace update thesis-sdlc-kit
+claude plugin update sdlc-kit@thesis-sdlc-kit
+```
+
+For an install with `--scope project`, add `--scope project` to the second command.
+
+The update applies to new sessions. In a session that is open, run `/reload-plugins` to load the new version.
+
+Auto-update is off by default for a marketplace that `claude plugin marketplace add` adds. To turn it on, run `/plugin` in a session and open the **Marketplaces** tab. Select `thesis-sdlc-kit`, then select **Enable auto-update**. Claude Code then updates the plugin after a session starts, and the next session loads the new version.
+
+### Update in the Claude app
+
+Cowork gets updates from the marketplace that the plugin came from. To get the latest version now, open the plugin page in Cowork and select **Check for updates** on the marketplace `thesis/sdlc-kit`. To get each new version with no action, turn on **Sync automatically** for that marketplace.
+
 ### Usage
 
 A stage of work starts with an intent, continues with a spec and ends with the build of the plan.
