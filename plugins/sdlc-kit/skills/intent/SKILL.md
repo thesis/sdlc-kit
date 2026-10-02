@@ -34,8 +34,8 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
 4. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
    - Fill every section of the template.
    - Remove the guidance comments.
-   - Keep the frontmatter of the template at the top, between the `---` lines, with the fields `type`, `owner` and `status`. Remove its `relates` line. The spec skill and the plan skill add the field later.
-   - Set `owner` to the name of the owner and `status` to `review`.
+   - Keep the frontmatter of the template at the top, between the `---` lines, with the fields `type` and `owner`. Remove its `relates` line. The spec skill and the plan skill add the field later.
+   - Set `owner` to the name of the owner.
    - Write the name of the intent in the title line `# Intent: <name>`.
    - Give each open problem a number and an owner.
 5. Remove the title line and the blank line after it from the draft. Keep the title `Intent: <name>` for the save. Linear shows the title of the document above the content, so the content has no title line.
@@ -56,6 +56,6 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
 9. Post a first comment on the document with the `save_comment` tool. Pass the `documentId` of the document. In the comment, list the open problems. Ask the named stakeholders for answers, with an @mention for each one. The comment follows the writing rules.
 10. Give the owner the URL of the document.
 
-## When the intent is approved
+## After the save
 
-The spec skill approves the intent: it sets the `status` field to `approved` before it writes the spec. It does so only when the status is `review` and every comment thread on the intent is resolved. At that point each open problem has an answer, or it goes to the spec as an open problem. Nobody sets the status by hand.
+The owner decides when the intent is ready for the spec. The spec skill reports each open thread on the intent and goes on. Each open problem has an answer in the intent, or it goes to the spec as an open problem. After the save of the spec, the spec skill adds the URL of the spec to the `relates` field of the intent. No field of the intent holds its state.
