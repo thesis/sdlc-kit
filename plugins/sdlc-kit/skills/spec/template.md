@@ -2,7 +2,7 @@
 type: spec
 owner: <name>
 status: draft | review | approved
-relates: <url>
+relates: <intent URL>, <plan PR URL>
 ---
 
 # Spec: <name>

@@ -11,7 +11,7 @@ The spec says how the functionality works, at a level that business, product and
 
 The input is the Linear URL of the intent: $ARGUMENTS
 
-The skill approves the intent first, and writes the spec after the approval. A run can stop after the approval and before the save of the spec. Then the intent is `approved`, and no comment of this skill on the intent gives the URL of a spec. A new run on that intent finds no such comment, so it goes on at the draft of the spec.
+The skill approves the intent first, and writes the spec after the approval. After the save of the spec, the skill adds the URL of the spec to the `relates` field of the intent. Each change of a frontmatter field is a patch save. A patch save holds only `replace`, `insert_before` or `insert_after` ops, and each op writes one `key: value` line of the frontmatter. The gate allows such a patch with no lint and no judge run.
 
 ## Before you start
 
@@ -33,20 +33,19 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
 
 3. Read the `status` field in the frontmatter of the intent:
    - `review`: go on at step 4.
-   - `approved`: look for a comment on the intent whose first sentence is `The spec of this intent is <URL>.` Step 15 posts it. When such a comment exists, stop and give the owner the URL of that spec. When no such comment exists, an earlier run stopped before the save of the spec. Tell the owner that the intent is approved already. Then go on at step 8.
+   - `approved`: read the `relates` field of the intent. When it holds the URL of a spec, stop and give the owner that URL. When the intent has no `relates` field, ask the owner whether a spec of this intent exists. When the owner gives its URL, do step 14 with that URL and stop. When the owner says no, go on at step 7.
    - Any other value: stop. Tell the owner the status that you found.
 4. Stop when a thread is open. A thread is open when `resolved` is false and `anchorResolved` is not true. Name each open thread by the first words of its first comment. Ask the owner to settle it and resolve it.
 5. Check each resolved thread against the text of the intent. A resolved thread is a decision, and its outcome must be in the text. Stop when the text lacks the outcome of a resolved thread. Name each such thread. Ask the owner to write the outcome into the intent. Do not write it yourself.
-6. Copy the scratch file of the intent. In the copy, set the `status` field to `approved`. Change nothing else. Run the lint on the copy with `--type intent`. When the lint lists findings, stop. Give the owner the findings.
-7. Approve the intent. Save it with the `save_document` tool: the `id` and the `title` of the intent, and the copy of step 6 in `content`. The gate of the plugin runs on the save. When it denies the save, follow the retry rule above. Change only the lines that the gate names. When the save still fails after the retries, stop. Give the owner the findings. The intent stays in `review`, and the run changed nothing else.
-8. List the open problems of the intent and the decisions already taken. Show the list to the owner. Get the confirmation of the owner before you write a draft. Ask the owner which Linear team or project gets the spec. Propose the parent of the intent as the default.
-9. Do the research read-only, in the repository that the owner gives, in external documents and in on-chain facts.
-10. Interview the owner only on the forks that the research cannot settle. Ask one question at a time. A fork that stays open becomes an open decision with an owner and a date, not a paragraph of options.
-11. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
+6. Approve the intent. Call the `save_document` tool with the `id` of the intent and this `patch`, and no `content`: one `replace` op with `old_string` `status: review` and `new_string` `status: approved`. When the save fails, stop. Tell the owner what failed.
+7. List the open problems of the intent and the decisions already taken. Show the list to the owner. Get the confirmation of the owner before you write a draft. Ask the owner which Linear team or project gets the spec. Propose the parent of the intent as the default.
+8. Do the research read-only, in the repository that the owner gives, in external documents and in on-chain facts.
+9. Interview the owner only on the forks that the research cannot settle. Ask one question at a time. A fork that stays open becomes an open decision with an owner and a date, not a paragraph of options.
+10. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
     - Fill every section of the template.
     - Remove the guidance comments.
     - Keep the frontmatter of the template at the top, between the `---` lines, with the fields `type`, `owner`, `status` and `relates`.
-    - Set `owner` to the name of the owner, `status` to `review` and `relates` to the URL of the intent.
+    - Set `owner` to the name of the owner, `status` to `review` and `relates` to the URL of the intent only.
     - Write the name of the spec in the title line `# Spec: <name>`.
     - Give each open decision a number, an owner and a date.
     - In "11. Intent open problems, answered", give each open problem of the intent an answer or an owner.
@@ -59,23 +58,23 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
     - Put "Areas of concern" material under "8. Trade-offs".
 
     Then remove the title line and the blank line after it from the draft. Keep the title `Spec: <name>` for the save. Linear shows the title of the document above the content, so the content has no title line.
-12. Run the lint on the draft:
+11. Run the lint on the draft:
 
     ```
     node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs --type spec <draft>
     ```
 
     When the lint lists findings, follow the retry rule above.
-13. Read the draft again against the writing rules. Fix what you find. Then run the lint again.
-14. Create the Linear document with the `save_document` tool of the Linear MCP server:
-    - Use the title `Spec: <name>` of step 11.
+12. Read the draft again against the writing rules. Fix what you find. Then run the lint again.
+13. Create the Linear document with the `save_document` tool of the Linear MCP server:
+    - Use the title `Spec: <name>` of step 10.
     - Give the document exactly one parent: the team or the project that the owner confirmed.
     - Put the draft in `content` as markdown, with its frontmatter.
 
     The gate of the plugin runs on the save. When it denies the save, follow the retry rule above.
-15. Post a comment on the intent with the `save_comment` tool, right after the save of the spec. Pass the `documentId` of the intent. The first sentence of the comment is `The spec of this intent is <spec URL>.` The comment follows the writing rules.
-16. Post one comment for each open decision with the `save_comment` tool. Pass the `documentId` of the spec. Address each comment to the owner of the decision with an @mention. Each comment follows the writing rules.
-17. Give the owner the URL of the spec.
+14. Link the spec from the intent. Call the `save_document` tool with the `id` of the intent and this `patch`, and no `content`: one `insert_after` op with `anchor` `status: approved` and `text` `\nrelates: <spec URL>`. When the save fails, stop. Tell the owner what failed, and give the URL of the spec.
+15. Post one comment for each open decision with the `save_comment` tool. Pass the `documentId` of the spec. Address each comment to the owner of the decision with an @mention. Each comment follows the writing rules.
+16. Give the owner the URL of the spec.
 
 ## When the spec is approved
 

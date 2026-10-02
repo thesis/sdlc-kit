@@ -2,7 +2,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { readFrontmatter, stripAnchors } from './linear.mjs';
+import { GIT_RELATES, readFrontmatter, stripAnchors } from './linear.mjs';
 
 export const STATUSES = ['draft', 'review', 'approved'];
 export const FORMS = ['linear', 'git'];
@@ -12,14 +12,15 @@ export const FORMS = ['linear', 'git'];
 // that also lives in Linear. `exported` marks a type whose git file takes
 // the `exported` field. `oldHeader` names the header lines of the form
 // before the frontmatter, for the finding that tells how to convert it.
-// `relatesForm` is the form of the `relates` field. `relatesFiles` names the
-// files that the field links, which must exist next to the document.
+// `relatesOptional` marks a type whose Linear document may have no
+// `relates` field. In git, GIT_RELATES gives the `relates` field of each type.
 export const TEMPLATES = {
   intent: {
     prefix: 'Intent',
-    fields: ['type', 'owner', 'status'],
+    fields: ['type', 'owner', 'status', 'relates'],
     linear: true,
     exported: true,
+    relatesOptional: true,
     oldHeader: ['Owner:', 'Status:', 'Linear:', 'Exported:'],
     sections: [
       { title: 'Executive summary', maxBullets: 5 },
@@ -37,8 +38,6 @@ export const TEMPLATES = {
     linear: true,
     exported: true,
     oldHeader: ['Implements:', 'Owner:', 'Status:', 'Exported:'],
-    relatesForm: /^https?:\/\/\S+$/,
-    relatesHint: '<intent URL>',
     sections: [
       { title: 'Terms' },
       { title: 'Scope' },
@@ -59,9 +58,6 @@ export const TEMPLATES = {
     linear: false,
     exported: false,
     oldHeader: ['Implements:'],
-    relatesForm: /^spec\.md, intent\.md$/,
-    relatesHint: 'spec.md, intent.md',
-    relatesFiles: ['spec.md', 'intent.md'],
     sections: [
       { title: 'Summary' },
       { title: 'Work order', table: ['Phase', 'Depends on', 'Merge gate'] },
@@ -181,6 +177,12 @@ const ING_TECHNICAL_NAMES = new Set(['operating system', 'logging level']);
 const MAX_SENTENCE_WORDS = 25;
 const EXPORTED_VALUE = /^https?:\/\/\S+[ \t]+·[ \t]+\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/;
 const PLACEHOLDER = /<[a-z][a-z -]*>/gi;
+const URL_ITEM = /^https?:\/\/\S+$/;
+
+/** Whether each item of the comma list `value` is a URL, the form of `relates` in Linear. */
+export function isUrlList(value) {
+  return value.split(',').every((item) => URL_ITEM.test(item.trim()));
+}
 
 const FENCE = /^\s*(`{3,}|~{3,})/;
 const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
@@ -509,9 +511,15 @@ function listWords(words) {
   return words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
 }
 
+/** The fields that a document of `type` must have in `form`. */
+function requiredFields(type, form) {
+  const template = TEMPLATES[type];
+  return template.fields.filter((f) => f !== 'relates' || form === 'git' || !template.relatesOptional);
+}
+
 function missingFrontmatter(type, form) {
   const template = TEMPLATES[type];
-  const fields = listWords(template.fields);
+  const fields = listWords(requiredFields(type, form));
   const start = form === 'git'
     ? `the file has no frontmatter; start it with a "---" block of the fields ${fields}, above the "# ${template.prefix}: <name>" line`
     : `the document has no frontmatter; start it with a "---" block of the fields ${fields}`;
@@ -522,8 +530,9 @@ function missingFrontmatter(type, form) {
 
 // Checks the frontmatter fields of a stage document. The `type` field must
 // name the type of the lint. The `exported` field belongs only to the git
-// file of a type that Linear exports, and there it is required. With no
-// `exists`, the lint does not check the files of the `relates` field.
+// file of a type that Linear exports, and there it is required. In Linear,
+// each item of `relates` is a URL. In git, `relates` is the list of
+// GIT_RELATES, and with `exists` the lint checks that each file is there.
 function checkFields(frontmatter, type, form, exists, add) {
   const template = TEMPLATES[type];
   const { fields } = frontmatter;
@@ -550,15 +559,17 @@ function checkFields(frontmatter, type, form, exists, add) {
       add(status.index + 1, 'structure-status', `status "${status.value}" is not one of: ${STATUSES.join(', ')}`);
     }
   }
-  if (template.fields.includes('relates')) {
-    const field = required('relates', 'structure-relates');
-    if (field && !new RegExp(PLACEHOLDER.source, 'i').test(field.value)) {
-      if (!template.relatesForm.test(field.value)) {
-        add(field.index + 1, 'structure-relates', `write the field as "relates: ${template.relatesHint}"`);
-      } else if (exists) {
-        for (const name of template.relatesFiles ?? []) {
-          if (!exists(name)) add(field.index + 1, 'structure-relates', `the ${type} relates to ${name}, but no ${name} is next to it`);
-        }
+  const relates = requiredFields(type, form).includes('relates') ? required('relates', 'structure-relates') : fields.relates;
+  if (relates && !new RegExp(PLACEHOLDER.source, 'i').test(relates.value)) {
+    if (form === 'linear') {
+      if (!isUrlList(relates.value)) {
+        add(relates.index + 1, 'structure-relates', 'each item of the "relates" field must be a URL; write the field as "relates: <URL>, <URL>"');
+      }
+    } else if (relates.value !== GIT_RELATES[type].join(', ')) {
+      add(relates.index + 1, 'structure-relates', `write the field as "relates: ${GIT_RELATES[type].join(', ')}"`);
+    } else if (exists) {
+      for (const name of GIT_RELATES[type]) {
+        if (!exists(name)) add(relates.index + 1, 'structure-relates', `the ${type} relates to ${name}, but no ${name} is next to it`);
       }
     }
   }

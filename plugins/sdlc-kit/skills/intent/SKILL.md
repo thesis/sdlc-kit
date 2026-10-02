@@ -34,7 +34,7 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
 4. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
    - Fill every section of the template.
    - Remove the guidance comments.
-   - Keep the frontmatter of the template at the top, between the `---` lines, with the fields `type`, `owner` and `status`.
+   - Keep the frontmatter of the template at the top, between the `---` lines, with the fields `type`, `owner` and `status`. Remove its `relates` line. The spec skill and the plan skill add the field later.
    - Set `owner` to the name of the owner and `status` to `review`.
    - Write the name of the intent in the title line `# Intent: <name>`.
    - Give each open problem a number and an owner.

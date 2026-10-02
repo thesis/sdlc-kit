@@ -21,6 +21,13 @@ const FIELD = /^([a-z][a-z0-9_-]*):(?:[ \t]+(.*?))?[ \t]*$/;
 const NOT_PLAIN = /^(?:[-?:](?:\s|$)|[,[\]{}#&*!|>'"%@`])|: | #|:$/;
 const TITLE_PREFIX = { intent: 'Intent', spec: 'Spec' };
 
+/** The `relates` field of each stage file in git: the other files of its stage directory. */
+export const GIT_RELATES = {
+  intent: ['spec.md', 'plan.md'],
+  spec: ['intent.md', 'plan.md'],
+  plan: ['spec.md', 'intent.md'],
+};
+
 /** Removes the comment anchors of Linear and keeps the text that they wrap. */
 export function stripAnchors(content) {
   return content.replace(ANCHOR_OPEN, '').replace(ANCHOR_CLOSE, '');
@@ -92,6 +99,7 @@ export function frontmatterType(content) {
 /**
  * Turns the content that get_document returned into the git file of an
  * intent or a spec: the frontmatter between "---" lines with the field
+ * `relates` of GIT_RELATES in place of the Linear URLs, then the field
  * `exported: <url> · <time>` last, then the line "# <Type>: <name>", then
  * the body. The name is `title`, the title of the Linear document, with no
  * "Intent:" or "Spec:" prefix. The export removes the comment anchors and
@@ -115,10 +123,10 @@ export function exportDocument(content, { url, title, at = isoNow() }) {
   }
   const name = (named ? named[2] : title).trim();
   if (!name) throw new Error(`the title "${title.trim()}" has no name after its prefix`);
-  const fields = lines.slice(fm.start + 1, fm.end).filter((l) => l.trim() !== '' && !l.startsWith('exported:'));
+  const fields = lines.slice(fm.start + 1, fm.end).filter((l) => l.trim() !== '' && !/^(?:relates|exported):/.test(l));
   const body = lines.slice(fm.end + 1);
   while (body.length && body[0].trim() === '') body.shift();
-  return ['---', ...fields, `exported: ${url} · ${at}`, '---', '', `# ${TITLE_PREFIX[type]}: ${name}`, '', ...body].join('\n');
+  return ['---', ...fields, `relates: ${GIT_RELATES[type].join(', ')}`, `exported: ${url} · ${at}`, '---', '', `# ${TITLE_PREFIX[type]}: ${name}`, '', ...body].join('\n');
 }
 
 /** Maps the id of each comment anchor in the content to its `resolved` attribute. */

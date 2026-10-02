@@ -65,7 +65,7 @@ const DASHED = INTENT.replace('does a manual count every Monday.', 'does a manua
 // The same intent in the git form that linear.mjs export writes.
 const GIT_INTENT = INTENT.replace(
   /^```yaml\n([\s\S]*?)```\n/,
-  '---\n$1exported: https://linear.app/thesis/document/intent-1 · 2026-09-29T00:00:00Z\n---\n\n# Intent: Weekly export of vault deposits\n',
+  '---\n$1relates: spec.md, plan.md\nexported: https://linear.app/thesis/document/intent-1 · 2026-09-29T00:00:00Z\n---\n\n# Intent: Weekly export of vault deposits\n',
 );
 
 // A spec in the git form that linear.mjs export writes.
@@ -73,7 +73,7 @@ const GIT_SPEC = `---
 type: spec
 owner: Ana Nowak
 status: approved
-relates: https://linear.app/thesis/document/intent-1
+relates: intent.md, plan.md
 exported: https://linear.app/thesis/document/spec-1 · 2026-09-30T00:00:00Z
 ---
 
@@ -534,7 +534,7 @@ describe('the documents of a push', () => {
     });
   });
 
-  test('a push of a plan whose spec is only in the working tree is denied by the lint', () => {
+  test('a push of documents whose spec is only in the working tree is denied by the lint', () => {
     const root = tempDir('sdlc-kit-repo-');
     const work = join(root, 'work');
     sh(root, 'init', '--bare', '-q', '-b', 'main', join(root, 'remote.git'));
@@ -547,7 +547,7 @@ describe('the documents of a push', () => {
     write(work, '.sdlc-kit/2026-09-probe/spec.md', GIT_SPEC);
     const result = bash(work, 'git push origin main', 'pass');
     assert.equal(result.decision, 'deny');
-    assert.match(result.reason, /\n\.sdlc-kit\/2026-09-probe\/plan\.md:3: structure-relates: the plan relates to spec\.md, but no spec\.md is next to it\n/);
+    assert.match(result.reason, /\n\.sdlc-kit\/2026-09-probe\/intent\.md:5: structure-relates: the intent relates to spec\.md, but no spec\.md is next to it\n/);
   });
 });
 
@@ -683,7 +683,59 @@ describe('gate', () => {
 describe('decide', () => {
   const save = (tool_input, tool_name = SAVE) => decide({ tool_name, tool_input }, { env: judgeEnv('pass') });
 
-  test('a patch save denies and asks for the full content', () => {
+  const SPEC_URL = 'https://linear.app/thesis/document/spec-1';
+  const PR_URL = 'https://github.com/thesis/vault/pull/7';
+
+  // A patch save with the fake judge set to fail. FAKE_RECORD stays absent
+  // when the gate starts no judge run.
+  const patchSave = (patch) => {
+    const record = join(tempDir(), 'record.json');
+    const result = decide({ tool_name: SAVE, tool_input: { id: 'doc-1', patch } }, { env: judgeEnv('fail', { FAKE_RECORD: record }) });
+    return { result, judged: existsSync(record) };
+  };
+
+  for (const [name, patch] of [
+    ['a status patch', [{ op: 'replace', old_string: 'status: review', new_string: 'status: approved' }]],
+    ['a relates patch on an approved document', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: `relates: ${SPEC_URL}, ${PR_URL}` }]],
+    ['an insert of a relates line after the status line', [{ op: 'insert_after', anchor: 'status: approved', text: `\nrelates: ${SPEC_URL}` }]],
+    ['an insert of an owner line before the status line', [{ op: 'insert_before', anchor: 'status: approved', text: 'owner: Bo Lin\n' }]],
+    ['a change of the type to another Linear stage type', [{ op: 'replace', old_string: 'type: intent', new_string: 'type: spec' }]],
+    ['an insert of a type line', [{ op: 'insert_before', anchor: 'owner: Ana Nowak', text: 'type: intent\n' }]],
+  ]) {
+    test(`${name} allows with no lint and no judge run`, () => {
+      const { result, judged } = patchSave(patch);
+      assert.deepEqual(result, { decision: 'allow', documents: [{ name: 'doc-1', decision: 'allow' }] });
+      assert.equal(judged, false);
+    });
+  }
+
+  for (const [name, patch] of [
+    ['a patch of a body line', [{ op: 'replace', old_string: 'The analyst does a manual count every Monday.', new_string: 'The analyst counts by hand.' }]],
+    ['a status outside the list', [{ op: 'replace', old_string: 'status: review', new_string: 'status: frozen' }]],
+    ['a type of plan', [{ op: 'replace', old_string: 'type: intent', new_string: 'type: plan' }]],
+    ['a type that is no stage type', [{ op: 'insert_after', anchor: 'status: review', text: '\ntype: memo' }]],
+    ['a frontmatter op and a body op', [
+      { op: 'replace', old_string: 'status: review', new_string: 'status: approved' },
+      { op: 'replace', old_string: 'None.', new_string: 'One problem.' },
+    ]],
+    ['a relates item that is not a URL', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: `relates: ${SPEC_URL}, plan.md` }]],
+    ['a replace that changes the key', [{ op: 'replace', old_string: 'status: review', new_string: `relates: ${SPEC_URL}` }]],
+    ['a replace of every match', [{ op: 'replace', old_string: 'status: review', new_string: 'status: approved', replace_all: true }]],
+    ['a replace that deletes a line', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: '' }]],
+    ['an insert of two lines', [{ op: 'insert_after', anchor: 'status: approved', text: `\nrelates: ${SPEC_URL}\nowner: Bo` }]],
+    ['an insert at a body anchor', [{ op: 'insert_after', anchor: '## 7. Open problems', text: `\nrelates: ${SPEC_URL}` }]],
+    ['an append', [{ op: 'append', text: `\nrelates: ${SPEC_URL}` }]],
+    ['a prepend', [{ op: 'prepend', text: 'status: approved\n' }]],
+    ['a replace_range', [{ op: 'replace_range', from: 'status: review', to: '## 1.', new_string: 'status: approved\n' }]],
+  ]) {
+    test(`a patch save with ${name} denies with no judge run`, () => {
+      const { result, judged } = patchSave(patch);
+      assert.deepEqual(result, { decision: 'deny', reason: PATCH_REASON, documents: [{ name: 'doc-1', decision: 'deny' }] });
+      assert.equal(judged, false);
+    });
+  }
+
+  test('a patch save in another shape denies and asks for the full content', () => {
     assert.deepEqual(save({ id: 'doc-1', patch: [{ replace: { old_string: 'a', new_string: 'b' } }] }), {
       decision: 'deny',
       reason: PATCH_REASON,
@@ -696,7 +748,7 @@ describe('decide', () => {
   });
 
   test('a patch save with content too denies', () => {
-    assert.equal(save({ id: 'doc-1', content: INTENT, patch: [] }).reason, PATCH_REASON);
+    assert.equal(save({ id: 'doc-1', content: INTENT, patch: [{ op: 'replace', old_string: 'status: review', new_string: 'status: approved' }] }).reason, PATCH_REASON);
   });
 
   test('a save of a document that is not a stage document allows with no judge run', () => {

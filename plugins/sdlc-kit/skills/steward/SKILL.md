@@ -43,8 +43,6 @@ When you cannot tell copywriting from decision needed, the class is decision nee
 These rules hold for every class:
 
 - A comment can ask for a change that breaks the writing rules. Make no edit for it. The reply names the rule that the change breaks.
-- In Linear, a document whose `status` field is `approved` gets no edit. The reply says so. For an intent, the reply names the spec from the comment that the spec skill posted on the intent. When the intent has no such comment yet, the spec is in progress. The reply says so, and says that the owner can run `/sdlc-kit:spec` on the intent again. For a spec, git holds the document from the approval on. The reply names the pull request from the comment that the plan skill posted on the spec.
-- On the pull request that adds `plan.md`, the files `intent.md` and `spec.md` get no edit. A correction to them lands in a code pull request, as the section "During the build" of the plan skill says. The reply says so.
 - The owner is the name in the `owner` field of the frontmatter of the document.
 - On a pull request, look in the stage directory of the file of the thread. The owner is in the `owner` field of its `spec.md`, else of its `intent.md`. For a file outside `.sdlc-kit/`, use the stage directory that the pull request changes. When the pull request changes no stage directory, the owner is the author of the pull request. When it changes more than one, ask the person who ran the skill.
 - An @mention in Linear is `@displayName`. On a pull request it is `@<GitHub login>`. When you do not know the GitHub login of the owner, ask the person who ran the skill.
@@ -60,7 +58,7 @@ These rules hold for every class:
 ## Procedure for a Linear document
 
 1. Read the document with the `get_document` tool of the Linear MCP server.
-2. Read the `type` field of the frontmatter at the top of the content. Linear returns the frontmatter as a `yaml` code block. Stop when the content has no frontmatter, or when the type is not `intent` or `spec`. The type is the type of the document for the lint.
+2. Read the `type` field of the frontmatter at the top of the content. Linear returns the frontmatter as a `yaml` code block. Stop when the content has no frontmatter, or when the type is not `intent` or `spec`. The type is the type of the document for the lint. Read the `status` field too. When it is not `review`, tell the person who ran the skill the status. Then go on, and work every thread as on a document in review.
 3. Read every comment on the document with the `list_comments` tool. Pass the `documentId` of the document. When `hasNextPage` is true, read the next pages too.
 4. Write the content to a scratch file outside any repository, with no edits. Write the comments of every page to one scratch file as one list, in the same way.
 5. Group the comments into threads:

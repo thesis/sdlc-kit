@@ -25,12 +25,15 @@ if (isMain && process.env.SDLC_KIT_GATE) process.exit(0);
 // A static import that fails would stop the hook before it can deny, so the
 // lint loads here and a load error denies each call.
 let lintText;
+let isUrlList;
+let STATUSES;
 let stripAnchors;
 let frontmatterType;
+let readFrontmatter;
 let lintLoadError = null;
 try {
-  ({ lintText } = await import('../scripts/lint.mjs'));
-  ({ stripAnchors, frontmatterType } = await import('../scripts/linear.mjs'));
+  ({ lintText, isUrlList, STATUSES } = await import('../scripts/lint.mjs'));
+  ({ stripAnchors, frontmatterType, readFrontmatter } = await import('../scripts/linear.mjs'));
 } catch (e) {
   lintLoadError = e;
 }
@@ -676,7 +679,53 @@ export function missingDirReason(dir) {
 }
 
 export const PATCH_REASON =
-  'document-gate: the gate cannot read the document that a patch save produces. Repeat the save with the full document in the content field and no patch field.';
+  'document-gate: a patch save may only change frontmatter fields. Each op is a "replace" of one "key: value" line with a line of the same key, ' +
+  'or an "insert_before" or "insert_after" of one "key: value" line at a "key: value" line. The key is type, owner, status or relates. ' +
+  `The type is intent or spec, the status is one of ${['draft', 'review', 'approved'].join(', ')}, and relates is a comma list of URLs. ` +
+  'For any other edit, repeat the save with the full document in the content field and no patch field.';
+
+// The fields of the Linear frontmatter, which a frontmatter patch may write.
+// `exported` is a field of the git file only.
+const PATCH_KEYS = ['type', 'owner', 'status', 'relates'];
+
+// The key and the value of `text` when it is one frontmatter line, else null.
+function fieldLine(text) {
+  if (typeof text !== 'string' || text.includes('\n')) return null;
+  const field = Object.entries(readFrontmatter(`---\n${text}\n---\n`)?.fields ?? {});
+  return field.length === 1 ? { key: field[0][0], value: field[0][1].value } : null;
+}
+
+function validNewField(line) {
+  if (!line || !PATCH_KEYS.includes(line.key) || !line.value) return false;
+  if (line.key === 'type') return LINEAR_TYPES.includes(line.value);
+  if (line.key === 'status') return STATUSES.includes(line.value.toLowerCase());
+  if (line.key === 'relates') return isUrlList(line.value);
+  return true;
+}
+
+/**
+ * Whether a patch only replaces or inserts frontmatter lines, so that the
+ * gate can allow it with no lint of the body and no judge run. The gate
+ * cannot read the document, so it checks the text of each op: an anchor or
+ * an old line must be one "key: value" line, and each new line must be one
+ * line of a key in PATCH_KEYS with a valid value. A "replace" keeps the key.
+ */
+export function isFrontmatterPatch(patch) {
+  if (!Array.isArray(patch) || !patch.length) return false;
+  return patch.every((op) => {
+    if (op?.op === 'replace') {
+      const before = fieldLine(op.old_string);
+      const after = fieldLine(op.new_string);
+      return !op.replace_all && before !== null && after !== null && before.key === after.key && validNewField(after);
+    }
+    if (op?.op === 'insert_after' || op?.op === 'insert_before') {
+      const text = typeof op.text === 'string' ? op.text : '';
+      const line = op.op === 'insert_after' ? text.match(/^\n([^\n]*)$/)?.[1] : text.match(/^([^\n]*)\n$/)?.[1];
+      return fieldLine(op.anchor) !== null && validNewField(fieldLine(line));
+    }
+    return false;
+  });
+}
 
 /**
  * Decides one PreToolUse call. Returns {decision, reason, documents}, where
@@ -688,8 +737,12 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
   const limits = { env, deadline, floorMs };
   if (SAVE_TOOL.test(tool)) {
     // The gate cannot read the document that a patch produces, or its type.
+    // A patch of frontmatter fields only needs no lint and no judge run.
     if (toolInput.patch !== undefined) {
-      return { decision: 'deny', reason: PATCH_REASON, documents: [{ name: toolInput.title ?? toolInput.id, decision: 'deny' }] };
+      const name = toolInput.title ?? toolInput.id;
+      requireLint();
+      if (toolInput.content === undefined && isFrontmatterPatch(toolInput.patch)) return { decision: 'allow', documents: [{ name, decision: 'allow' }] };
+      return { decision: 'deny', reason: PATCH_REASON, documents: [{ name, decision: 'deny' }] };
     }
     if (typeof toolInput.content !== 'string') return { decision: 'allow', documents: [] };
     const name = toolInput.title ?? toolInput.id ?? 'the document';

@@ -31,6 +31,8 @@ const SECTION_TEXT = {
 };
 
 const INTENT_URL = 'https://linear.app/thesis/document/intent-1';
+const SPEC_URL = 'https://linear.app/thesis/document/spec-1';
+const PR_URL = 'https://github.com/thesis/vault/pull/7';
 
 // The Linear form of a draft in the template: the intent and spec skills
 // remove the title line before the lint and the save, because the name goes
@@ -40,7 +42,8 @@ function linearDraft(text) {
 }
 
 // Builds a first draft the way the intent and spec skills do: the Linear
-// form, with the frontmatter fields that the skill sets before the save.
+// form, with the frontmatter fields that the skill sets before the save. The
+// intent has no relates line, and the spec relates to the intent only.
 // Text replaces each guidance comment, and the draft drops the closing
 // "Not here" comment.
 function fillTemplate(type) {
@@ -50,9 +53,10 @@ function fillTemplate(type) {
     .map((line) => {
       if (line.startsWith('owner:')) return 'owner: Ana Nowak';
       if (line.startsWith('status:')) return 'status: review';
-      if (line.startsWith('relates:')) return `relates: ${INTENT_URL}`;
+      if (line.startsWith('relates:')) return type === 'spec' ? `relates: ${INTENT_URL}` : null;
       return line;
-    });
+    })
+    .filter((line) => line !== null);
   let heading = null;
   return lines
     .map((line) => {
@@ -138,11 +142,12 @@ function tempDir() {
   return mkdtempSync(join(tmpdir(), 'sdlc-kit-lint-'));
 }
 
-// A stage directory with the git files of the intent and the spec.
+// A stage directory with the git files of the intent, the spec and the plan.
 function stageDir() {
   const dir = tempDir();
   writeFileSync(join(dir, 'intent.md'), exportTemplate('intent'));
   writeFileSync(join(dir, 'spec.md'), exportTemplate('spec'));
+  writeFileSync(join(dir, 'plan.md'), PLAN);
   return dir;
 }
 
@@ -517,12 +522,47 @@ describe('frontmatter', () => {
       assert.deepEqual(rules(spec.replace(/^relates: .*\n/m, ''), 'spec'), ['structure-relates']);
     });
 
-    for (const value of [`Intent ${INTENT_URL}`, 'the intent', 'intent.md']) {
-      test(`a spec relates field that is not a bare URL fails: ${value}`, () => {
+    for (const value of [`Intent ${INTENT_URL}`, 'the intent', 'intent.md', `${INTENT_URL}, plan.md`, `${INTENT_URL},`]) {
+      test(`a spec relates field with an item that is not a URL fails: ${value}`, () => {
         const found = lintText(spec.replace(`relates: ${INTENT_URL}`, `relates: ${value}`), { type: 'spec' });
-        assert.deepEqual(found.map((f) => [f.line, f.rule, f.message]), [[5, 'structure-relates', 'write the field as "relates: <intent URL>"']]);
+        assert.deepEqual(found.map((f) => [f.line, f.rule, f.message]), [
+          [5, 'structure-relates', 'each item of the "relates" field must be a URL; write the field as "relates: <URL>, <URL>"'],
+        ]);
       });
     }
+
+    test('a spec relates field with the intent URL and the pull request URL passes', () => {
+      assert.deepEqual(rules(spec.replace(`relates: ${INTENT_URL}`, `relates: ${INTENT_URL}, ${PR_URL}`), 'spec'), []);
+    });
+
+    test('an intent with the spec URL and the pull request URL in relates passes', () => {
+      assert.deepEqual(rules(withFields([...INTENT_FIELDS, `relates: ${SPEC_URL}, ${PR_URL}`]), 'intent'), []);
+    });
+
+    test('an intent relates field with a file name fails', () => {
+      assert.deepEqual(rules(withFields([...INTENT_FIELDS, 'relates: spec.md']), 'intent'), ['structure-relates']);
+    });
+
+    for (const [type, list] of [['intent', 'spec.md, plan.md'], ['spec', 'intent.md, plan.md']]) {
+      test(`a git ${type} with a relates field other than "${list}" fails`, () => {
+        const found = lintText(exportTemplate(type).replace(`relates: ${list}`, `relates: ${INTENT_URL}`), { type, form: 'git' });
+        assert.deepEqual(found.map((f) => [f.rule, f.message]), [['structure-relates', `write the field as "relates: ${list}"`]]);
+      });
+    }
+
+    test('the three git files next to each other pass', () => {
+      const dir = stageDir();
+      for (const type of ['intent', 'spec', 'plan']) {
+        assert.deepEqual(lintText(readFileSync(join(dir, `${type}.md`), 'utf8'), { type, form: 'git', path: join(dir, `${type}.md`) }), [], type);
+      }
+    });
+
+    test('a git intent with no plan next to it fails on the relates line', () => {
+      const dir = tempDir();
+      writeFileSync(join(dir, 'spec.md'), exportTemplate('spec'));
+      const found = lintText(exportTemplate('intent'), { type: 'intent', form: 'git', path: join(dir, 'intent.md') });
+      assert.deepEqual(found.map((f) => [f.line, f.rule, f.message]), [[5, 'structure-relates', 'the intent relates to plan.md, but no plan.md is next to it']]);
+    });
 
     test('a plan with no relates field fails', () => {
       assert.deepEqual(rules(PLAN.replace(/^relates: .*\n/m, ''), 'plan'), ['structure-relates']);
@@ -901,8 +941,7 @@ describe('cli', () => {
   });
 
   describe('--form', () => {
-    const exported = join(dir, 'intent.md');
-    writeFileSync(exported, exportTemplate('intent'));
+    const exported = join(stageDir(), 'intent.md');
 
     test('--form git passes the git file of an intent', () => {
       const r = run('--type', 'intent', '--form', 'git', exported);
@@ -913,7 +952,7 @@ describe('cli', () => {
     test('with no --form, an intent is linted in the Linear form', () => {
       const r = run('--type', 'intent', exported);
       assert.equal(r.status, 1);
-      assert.match(r.stdout, /:8: structure-title: a Linear document has no "# " title line/);
+      assert.match(r.stdout, /:9: structure-title: a Linear document has no "# " title line/);
     });
 
     test('an unknown form exits with 2', () => {

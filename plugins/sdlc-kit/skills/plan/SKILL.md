@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Approves a spec whose status is review, exports the spec and its approved intent to the target repository, and writes the plan in the sdlc-kit template, in one draft pull request. Use it when every comment thread on the spec is resolved and someone has the Linear URL of the spec.
+description: Approves a spec whose status is review, exports the spec and its approved intent to the target repository, and writes the plan in the sdlc-kit template, in one pull request. Use it when every comment thread on the spec is resolved and someone has the Linear URL of the spec.
 argument-hint: "<Linear URL of the spec>"
 allowed-tools: Read Glob Grep Agent Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/*)
 ---
@@ -9,7 +9,7 @@ allowed-tools: Read Glob Grep Agent Bash(node ${CLAUDE_PLUGIN_ROOT}/scripts/*)
 
 The plan says how agents build what the spec describes. Its first readers are the agents that build. Engineers read "1. Summary" and "2. Work order" of the plan for the big picture. The plan holds files, tests, commands and checks. An agent with a fresh context can build from the plan, the spec and the intent alone. Every requirement of the spec traces to a file and a test.
 
-The output is one branch and one draft pull request in the target repository, the repository where the feature lands. The pull request adds the stage directory `.sdlc-kit/YYYY-MM-<slug>/` with `intent.md`, `spec.md` and `plan.md`. The output never goes to thesis/sdlc-kit.
+The output is one branch and one pull request in the target repository, the repository where the feature lands. The pull request adds the stage directory `.sdlc-kit/YYYY-MM-<slug>/` with `intent.md`, `spec.md` and `plan.md`. The output never goes to thesis/sdlc-kit.
 
 Run the skill when every comment thread on the spec in Linear is resolved. The skill stops when the working directory is not a git checkout with a GitHub remote. It also stops when the `status` field of the spec is not `review`, or when the `status` field of the intent is not `approved`. A thread on the spec that is open stops it too.
 
@@ -17,7 +17,7 @@ The input is the Linear URL of the spec: $ARGUMENTS
 
 ## Before you start
 
-1. Read the file `${CLAUDE_PLUGIN_ROOT}/skills/writing/SKILL.md` with the Read tool. Its rules govern the plan, every comment that you post and the pull request description.
+1. Read the file `${CLAUDE_PLUGIN_ROOT}/skills/writing/SKILL.md` with the Read tool. Its rules govern the plan and the pull request description.
 2. Read the file `${CLAUDE_PLUGIN_ROOT}/skills/plan/template.md` with the Read tool. The plan uses its headings, in its order, with its numbers. You may add a subsection under a heading. Do not add a top-level heading.
 
 ## Rules for the stage files
@@ -50,28 +50,24 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
 12. Propose the stage directory name `.sdlc-kit/YYYY-MM-<slug>/` from the current month and the title of the spec. Wait for the owner to accept or change it.
 13. Run `git fetch`.
 14. Create the branch from the default branch of the remote. The name follows the rules of the target repository.
-15. In the content of the spec, set the `status` field of the frontmatter to `approved`. Change nothing else. The intent is approved already, so its content gets no change.
-16. Save the spec with the `save_document` tool: the `id` of the spec and the full content in `content`. The gate of the plugin runs on the save. When it denies the save, follow the retry rule above.
-17. Export each document into the stage directory, the intent to `intent.md` and the spec to `spec.md`. Pass the title of the Linear document as `--title`. The export writes the frontmatter between `---` lines with the `exported` field, then the title line `# Intent: <name>` or `# Spec: <name>`:
+15. Approve the spec. Call the `save_document` tool with the `id` of the spec and this `patch`, and no `content`: one `replace` op with `old_string` `status: review` and `new_string` `status: approved`. The gate allows a patch of frontmatter lines with no lint and no judge run. When the save fails, stop. Tell the owner what failed. The intent is approved already, so it gets no change.
+16. Read the spec again with the `get_document` tool. Write its content to the scratch file of the spec, with no edits.
+17. Export each document into the stage directory, the intent to `intent.md` and the spec to `spec.md`. Pass the title of the Linear document as `--title`. The export writes the frontmatter between `---` lines with the `relates` field of the git form and the `exported` field, then the title line `# Intent: <name>` or `# Spec: <name>`. In git, the `relates` field links the other files of the stage directory by relative path:
 
     ```
     node ${CLAUDE_PLUGIN_ROOT}/scripts/linear.mjs export --url <document URL> --title <document title> <content.md>
     ```
 
-18. Run the lint on both files, with `--form git` and with `--type intent` and `--type spec`. Do not edit the approved text. When the lint lists findings, stop. Give the owner the findings and the path of each file. Then wait for the owner to decide.
-19. Commit `intent.md` and `spec.md` as the first commit of the branch.
-20. Push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule above.
-21. Open the pull request as a draft with `gh pr create --draft`.
-22. Post a comment with the URL of the pull request on each Linear document, with the `save_comment` tool. Each comment follows the writing rules.
-23. Survey the repository read-only, for every deliverable in "7. Deliverables" of the spec. Find the files, the tests and the commands that each deliverable touches.
-24. Write down each fact from the survey that the spec did not know. These facts go to "5. Risks before the work starts" of the plan.
-25. Interview the engineer only on repository choices. Ask one question at a time. The choices are these:
+18. Commit `intent.md` and `spec.md` as the first commit of the branch.
+19. Survey the repository read-only, for every deliverable in "7. Deliverables" of the spec. Find the files, the tests and the commands that each deliverable touches.
+20. Write down each fact from the survey that the spec did not know. These facts go to "5. Risks before the work starts" of the plan.
+21. Interview the engineer only on repository choices. Ask one question at a time. The choices are these:
     - the CI gates of a phase;
     - the test budget of a phase;
     - whether the phases depart from stacked pull requests, which are the default.
 
     Do not ask about a decision of the spec. A gap in the spec becomes a blocker in "6. Blockers" that names the section of the spec.
-26. Write `plan.md` in the stage directory, in the template. Use these steps:
+22. Write `plan.md` in the stage directory, in the template. Use these steps:
     - Fill every section of the template.
     - Remove the guidance comments.
     - Keep the frontmatter of the template at the top, between `---` lines, above the `# Plan:` title line.
@@ -80,15 +76,15 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
     - Map every requirement of the spec to at least one file change and one test.
     - Give every phase a merge gate that a script can check.
     - Refer to a section of the spec or the intent in the cross-reference form of the writing rules.
-27. Run the lint on the plan:
+23. Run the lint on the plan:
 
     ```
     node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs --type plan <stage directory>/plan.md
     ```
 
     When the lint lists findings, follow the retry rule above.
-28. Read the plan again against the writing rules. Fix what you find. Then run the lint again.
-29. Run the completeness check with the Agent tool. Spawn a subagent of the type `general-purpose`, never a fork, with the prompt below and nothing else. Replace the two paths. The subagent has a fresh context, so it sees only the files.
+24. Read the plan again against the writing rules. Fix what you find. Then run the lint again.
+25. Run the completeness check with the Agent tool. Spawn a subagent of the type `general-purpose`, never a fork, with the prompt below and nothing else. Replace the two paths. The subagent has a fresh context, so it sees only the files.
 
     ```
     You test one plan for completeness. An agent that builds from the plan has a fresh context: it has the plan, the two documents that the plan relates to and the repository, and nothing else. List each item that such an agent cannot determine. Zero items is the pass.
@@ -112,9 +108,13 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
     The verdict is FAIL when an item exists and PASS when the list is empty.
     ```
 
-30. When the verdict lists items, fix the plan. Then run the check again. Do not do more than three runs. After the third failed run, give the engineer the outstanding items and the path of the plan. Then wait for the engineer to decide.
-31. Commit the plan. Then push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule above.
-32. Mark the pull request ready with `gh pr ready`.
+26. When the verdict lists items, fix the plan. Then run the check again. Do not do more than three runs. After the third failed run, give the engineer the outstanding items and the path of the plan. Then wait for the engineer to decide.
+27. Run the lint on `intent.md` and `spec.md`, with `--form git` and with `--type intent` and `--type spec`. The lint checks that the files of each `relates` field exist, so it runs after `plan.md` exists. Do not edit the approved text. When the lint lists findings, stop. Give the owner the findings and the path of each file. Then wait for the owner to decide.
+28. Commit the plan.
+29. Push the branch with one `git push`. The push holds the commit of the export and the commit of the plan. The gate runs on the push. When it denies the push, follow the retry rule above.
+30. Open the pull request with `gh pr create`.
+31. Add the URL of the pull request to the `relates` field of the spec in Linear. Call the `save_document` tool with the `id` of the spec and this `patch`, and no `content`: one `replace` op with `old_string` `relates: <intent URL>` and `new_string` `relates: <intent URL>, <pull request URL>`. Copy the old line from the scratch file of the spec. When the save fails, stop. Tell the owner what failed.
+32. Add the URL of the pull request to the `relates` field of the intent in the same way: one `replace` op with `old_string` `relates: <spec URL>` and `new_string` `relates: <spec URL>, <pull request URL>`. Copy the old line from the scratch file of the intent. When the save fails, stop. Tell the owner what failed.
 33. Give the owner the URL of the pull request.
 
 ## During the build

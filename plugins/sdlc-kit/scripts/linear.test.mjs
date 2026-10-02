@@ -25,6 +25,7 @@ const INTENT = `\`\`\`yaml
 type: intent
 owner: Ana Nowak
 status: approved
+relates: https://linear.app/thesis/document/spec-1, https://github.com/thesis/vault/pull/7
 \`\`\`
 
 ## 1. Executive summary
@@ -170,12 +171,13 @@ describe('export', () => {
     assert.ok(exportDocument(text, { url: URL, title: TITLE, at: AT }).includes('[explorer](<a b.md>)'));
   });
 
-  test('the frontmatter goes between "---" lines with the exported field last, then the title line', () => {
-    assert.deepEqual(exported.split('\n').slice(0, 10), [
+  test('the frontmatter goes between "---" lines with relative links in relates and the exported field last, then the title line', () => {
+    assert.deepEqual(exported.split('\n').slice(0, 11), [
       '---',
       'type: intent',
       'owner: Ana Nowak',
       'status: approved',
+      'relates: spec.md, plan.md',
       `exported: ${URL} · ${AT}`,
       '---',
       '',
@@ -185,7 +187,7 @@ describe('export', () => {
     ]);
   });
 
-  test('the stored spec of Linear exports with its fields in order', () => {
+  test('the stored spec of Linear exports with its fields in order and the relative links of a spec', () => {
     assert.equal(
       exportDocument(STORED_SPEC, { url: URL, title: 'Spec: Weekly export', at: AT }),
       [
@@ -193,7 +195,7 @@ describe('export', () => {
         'type: spec',
         'owner: Łukasz Zimnoch',
         'status: review',
-        'relates: https://linear.app/thesis-co/document/example-1234abcd',
+        'relates: intent.md, plan.md',
         `exported: ${URL} · ${AT}`,
         '---',
         '',
