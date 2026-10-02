@@ -4,7 +4,6 @@ import { basename, dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { GIT_RELATES, readFrontmatter, stripAnchors } from './linear.mjs';
 
-export const STATUSES = ['draft', 'review', 'approved'];
 export const FORMS = ['linear', 'git'];
 
 // The frontmatter fields and the top-level headings of each stage template,
@@ -17,11 +16,11 @@ export const FORMS = ['linear', 'git'];
 export const TEMPLATES = {
   intent: {
     prefix: 'Intent',
-    fields: ['type', 'owner', 'status', 'relates'],
+    fields: ['type', 'owner', 'relates'],
     linear: true,
     exported: true,
     relatesOptional: true,
-    oldHeader: ['Owner:', 'Status:', 'Linear:', 'Exported:'],
+    oldHeader: ['Owner:', 'Linear:', 'Exported:'],
     sections: [
       { title: 'Executive summary', maxBullets: 5 },
       { title: 'Problem' },
@@ -34,10 +33,10 @@ export const TEMPLATES = {
   },
   spec: {
     prefix: 'Spec',
-    fields: ['type', 'owner', 'status', 'relates'],
+    fields: ['type', 'owner', 'relates'],
     linear: true,
     exported: true,
-    oldHeader: ['Implements:', 'Owner:', 'Status:', 'Exported:'],
+    oldHeader: ['Implements:', 'Owner:', 'Exported:'],
     sections: [
       { title: 'Terms' },
       { title: 'Scope' },
@@ -553,12 +552,6 @@ function checkFields(frontmatter, type, form, exists, add) {
   const typeField = required('type', 'structure-frontmatter');
   if (typeField && typeField.value !== type) add(typeField.index + 1, 'structure-frontmatter', `the "type" field must be "${type}"`);
   if (template.fields.includes('owner')) required('owner', 'structure-owner');
-  if (template.fields.includes('status')) {
-    const status = required('status', 'structure-status');
-    if (status && !STATUSES.includes(status.value.toLowerCase())) {
-      add(status.index + 1, 'structure-status', `status "${status.value}" is not one of: ${STATUSES.join(', ')}`);
-    }
-  }
   const relates = requiredFields(type, form).includes('relates') ? required('relates', 'structure-relates') : fields.relates;
   if (relates && !new RegExp(PLACEHOLDER.source, 'i').test(relates.value)) {
     if (form === 'linear') {

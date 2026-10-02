@@ -36,7 +36,6 @@ function tempDir(prefix = 'sdlc-kit-gate-') {
 const INTENT = `\`\`\`yaml
 type: intent
 owner: Ana Nowak
-status: review
 \`\`\`
 
 ## 1. Executive summary
@@ -72,7 +71,6 @@ const GIT_INTENT = INTENT.replace(
 const GIT_SPEC = `---
 type: spec
 owner: Ana Nowak
-status: approved
 relates: intent.md, plan.md
 exported: https://linear.app/thesis/document/spec-1 · 2026-09-30T00:00:00Z
 ---
@@ -547,7 +545,7 @@ describe('the documents of a push', () => {
     write(work, '.sdlc-kit/2026-09-probe/spec.md', GIT_SPEC);
     const result = bash(work, 'git push origin main', 'pass');
     assert.equal(result.decision, 'deny');
-    assert.match(result.reason, /\n\.sdlc-kit\/2026-09-probe\/intent\.md:5: structure-relates: the intent relates to spec\.md, but no spec\.md is next to it\n/);
+    assert.match(result.reason, /\n\.sdlc-kit\/2026-09-probe\/intent\.md:4: structure-relates: the intent relates to spec\.md, but no spec\.md is next to it\n/);
   });
 });
 
@@ -559,7 +557,7 @@ describe('gate', () => {
     assert.equal(
       result.reason,
       'document-gate: the lint found these lines in Intent: Weekly export:\n' +
-        'Intent: Weekly export:11: em-dash: em-dash (U+2014); use a comma, a colon, parentheses or two sentences\n' +
+        'Intent: Weekly export:10: em-dash: em-dash (U+2014); use a comma, a colon, parentheses or two sentences\n' +
         'Fix the named lines. Then repeat the call.',
     );
     assert.equal(existsSync(record), false);
@@ -695,10 +693,10 @@ describe('decide', () => {
   };
 
   for (const [name, patch] of [
-    ['a status patch', [{ op: 'replace', old_string: 'status: review', new_string: 'status: approved' }]],
-    ['a relates patch on an approved document', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: `relates: ${SPEC_URL}, ${PR_URL}` }]],
-    ['an insert of a relates line after the status line', [{ op: 'insert_after', anchor: 'status: approved', text: `\nrelates: ${SPEC_URL}` }]],
-    ['an insert of an owner line before the status line', [{ op: 'insert_before', anchor: 'status: approved', text: 'owner: Bo Lin\n' }]],
+    ['an owner patch', [{ op: 'replace', old_string: 'owner: Ana Nowak', new_string: 'owner: Bo Lin' }]],
+    ['a relates patch that appends a URL', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: `relates: ${SPEC_URL}, ${PR_URL}` }]],
+    ['an insert of a relates line after the owner line', [{ op: 'insert_after', anchor: 'owner: Ana Nowak', text: `\nrelates: ${SPEC_URL}` }]],
+    ['an insert of an owner line before the relates line', [{ op: 'insert_before', anchor: `relates: ${SPEC_URL}`, text: 'owner: Bo Lin\n' }]],
     ['a change of the type to another Linear stage type', [{ op: 'replace', old_string: 'type: intent', new_string: 'type: spec' }]],
     ['an insert of a type line', [{ op: 'insert_before', anchor: 'owner: Ana Nowak', text: 'type: intent\n' }]],
   ]) {
@@ -711,22 +709,22 @@ describe('decide', () => {
 
   for (const [name, patch] of [
     ['a patch of a body line', [{ op: 'replace', old_string: 'The analyst does a manual count every Monday.', new_string: 'The analyst counts by hand.' }]],
-    ['a status outside the list', [{ op: 'replace', old_string: 'status: review', new_string: 'status: frozen' }]],
+    ['a status patch', [{ op: 'replace', old_string: 'status: review', new_string: 'status: approved' }]],
     ['a type of plan', [{ op: 'replace', old_string: 'type: intent', new_string: 'type: plan' }]],
-    ['a type that is no stage type', [{ op: 'insert_after', anchor: 'status: review', text: '\ntype: memo' }]],
+    ['a type that is no stage type', [{ op: 'insert_after', anchor: 'owner: Ana Nowak', text: '\ntype: memo' }]],
     ['a frontmatter op and a body op', [
-      { op: 'replace', old_string: 'status: review', new_string: 'status: approved' },
+      { op: 'replace', old_string: 'owner: Ana Nowak', new_string: 'owner: Bo Lin' },
       { op: 'replace', old_string: 'None.', new_string: 'One problem.' },
     ]],
     ['a relates item that is not a URL', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: `relates: ${SPEC_URL}, plan.md` }]],
-    ['a replace that changes the key', [{ op: 'replace', old_string: 'status: review', new_string: `relates: ${SPEC_URL}` }]],
-    ['a replace of every match', [{ op: 'replace', old_string: 'status: review', new_string: 'status: approved', replace_all: true }]],
+    ['a replace that changes the key', [{ op: 'replace', old_string: 'owner: Ana Nowak', new_string: `relates: ${SPEC_URL}` }]],
+    ['a replace of every match', [{ op: 'replace', old_string: 'owner: Ana Nowak', new_string: 'owner: Bo Lin', replace_all: true }]],
     ['a replace that deletes a line', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: '' }]],
-    ['an insert of two lines', [{ op: 'insert_after', anchor: 'status: approved', text: `\nrelates: ${SPEC_URL}\nowner: Bo` }]],
+    ['an insert of two lines', [{ op: 'insert_after', anchor: 'owner: Ana Nowak', text: `\nrelates: ${SPEC_URL}\nowner: Bo` }]],
     ['an insert at a body anchor', [{ op: 'insert_after', anchor: '## 7. Open problems', text: `\nrelates: ${SPEC_URL}` }]],
     ['an append', [{ op: 'append', text: `\nrelates: ${SPEC_URL}` }]],
-    ['a prepend', [{ op: 'prepend', text: 'status: approved\n' }]],
-    ['a replace_range', [{ op: 'replace_range', from: 'status: review', to: '## 1.', new_string: 'status: approved\n' }]],
+    ['a prepend', [{ op: 'prepend', text: 'owner: Bo Lin\n' }]],
+    ['a replace_range', [{ op: 'replace_range', from: 'owner: Ana Nowak', to: '## 1.', new_string: 'owner: Bo Lin\n' }]],
   ]) {
     test(`a patch save with ${name} denies with no judge run`, () => {
       const { result, judged } = patchSave(patch);
@@ -748,7 +746,7 @@ describe('decide', () => {
   });
 
   test('a patch save with content too denies', () => {
-    assert.equal(save({ id: 'doc-1', content: INTENT, patch: [{ op: 'replace', old_string: 'status: review', new_string: 'status: approved' }] }).reason, PATCH_REASON);
+    assert.equal(save({ id: 'doc-1', content: INTENT, patch: [{ op: 'replace', old_string: 'owner: Ana Nowak', new_string: 'owner: Bo Lin' }] }).reason, PATCH_REASON);
   });
 
   test('a save of a document that is not a stage document allows with no judge run', () => {
@@ -765,22 +763,22 @@ describe('decide', () => {
   test('a save of an intent with an em-dash denies', () => {
     const result = save({ title: 'Intent: Weekly export', team: 'ENG', content: DASHED });
     assert.equal(result.decision, 'deny');
-    assert.match(result.reason, /^document-gate: the lint found these lines in Intent: Weekly export:\n.*:11: em-dash:/);
+    assert.match(result.reason, /^document-gate: the lint found these lines in Intent: Weekly export:\n.*:10: em-dash:/);
   });
 
   test('an update by id with no title is gated by the type of its frontmatter', () => {
     const result = save({ id: 'doc-1', content: DASHED });
-    assert.match(result.reason, /in doc-1:\ndoc-1:11: em-dash/);
+    assert.match(result.reason, /in doc-1:\ndoc-1:10: em-dash/);
   });
 
   test('a save of an intent with a title line denies, because Linear shows the title twice', () => {
     const result = save({ id: 'doc-1', content: INTENT.replace('```\n\n', '```\n\n# Intent: Weekly export\n\n') });
-    assert.match(result.reason, /\ndoc-1:7: structure-title: a Linear document has no "# " title line/);
+    assert.match(result.reason, /\ndoc-1:6: structure-title: a Linear document has no "# " title line/);
   });
 
   test('a save of a spec in the form that Linear stores is gated as a spec', () => {
     const stored =
-      '```yaml\ntype: spec\nowner: Łukasz Zimnoch\nstatus: review\n' +
+      '```yaml\ntype: spec\nowner: Łukasz Zimnoch\n' +
       'relates: https://linear.app/thesis-co/document/example-1234abcd\n```\n\n## 1. Terms\nOne term.\n';
     assert.match(save({ id: 'doc-2', content: stored }).reason, /^document-gate: the lint found these lines in doc-2:\ndoc-2:1: structure-heading-missing: the spec has no "## 2\. Scope" heading/);
   });
@@ -830,7 +828,7 @@ describe('decide', () => {
   });
 
   test('a save with a title that names no stage type is gated by its frontmatter', () => {
-    assert.match(save({ title: 'Weekly export', content: DASHED }).reason, /in Weekly export:\nWeekly export:11: em-dash/);
+    assert.match(save({ title: 'Weekly export', content: DASHED }).reason, /in Weekly export:\nWeekly export:10: em-dash/);
   });
 
   test('a save through another Linear server name is gated', () => {

@@ -24,7 +24,6 @@ const TITLE = 'Intent: Weekly export of vault deposits';
 const INTENT = `\`\`\`yaml
 type: intent
 owner: Ana Nowak
-status: approved
 relates: https://linear.app/thesis/document/spec-1, https://github.com/thesis/vault/pull/7
 \`\`\`
 
@@ -56,7 +55,6 @@ None.
 const STORED_SPEC = `\`\`\`yaml
 type: spec
 owner: Łukasz Zimnoch
-status: review
 relates: https://linear.app/thesis-co/document/example-1234abcd
 \`\`\`
 
@@ -98,12 +96,11 @@ describe('readFrontmatter', () => {
     assert.deepEqual(readFrontmatter(STORED_SPEC), {
       form: 'fence',
       start: 0,
-      end: 5,
+      end: 4,
       fields: {
         type: { value: 'spec', index: 1 },
         owner: { value: 'Łukasz Zimnoch', index: 2 },
-        status: { value: 'review', index: 3 },
-        relates: { value: 'https://linear.app/thesis-co/document/example-1234abcd', index: 4 },
+        relates: { value: 'https://linear.app/thesis-co/document/example-1234abcd', index: 3 },
       },
       errors: [],
     });
@@ -172,11 +169,10 @@ describe('export', () => {
   });
 
   test('the frontmatter goes between "---" lines with relative links in relates and the exported field last, then the title line', () => {
-    assert.deepEqual(exported.split('\n').slice(0, 11), [
+    assert.deepEqual(exported.split('\n').slice(0, 10), [
       '---',
       'type: intent',
       'owner: Ana Nowak',
-      'status: approved',
       'relates: spec.md, plan.md',
       `exported: ${URL} · ${AT}`,
       '---',
@@ -194,7 +190,6 @@ describe('export', () => {
         '---',
         'type: spec',
         'owner: Łukasz Zimnoch',
-        'status: review',
         'relates: intent.md, plan.md',
         `exported: ${URL} · ${AT}`,
         '---',

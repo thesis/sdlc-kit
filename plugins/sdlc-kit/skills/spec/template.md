@@ -1,7 +1,6 @@
 ---
 type: spec
 owner: <name>
-status: draft | review | approved
 relates: <intent URL>, <plan PR URL>
 ---
 

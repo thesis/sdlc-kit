@@ -58,7 +58,7 @@ These rules hold for every class:
 ## Procedure for a Linear document
 
 1. Read the document with the `get_document` tool of the Linear MCP server.
-2. Read the `type` field of the frontmatter at the top of the content. Linear returns the frontmatter as a `yaml` code block. Stop when the content has no frontmatter, or when the type is not `intent` or `spec`. The type is the type of the document for the lint. Read the `status` field too. When it is not `review`, tell the person who ran the skill the status. Then go on, and work every thread as on a document in review.
+2. Read the `type` field of the frontmatter at the top of the content. Linear returns the frontmatter as a `yaml` code block. Stop when the content has no frontmatter, or when the type is not `intent` or `spec`. The type is the type of the document for the lint.
 3. Read every comment on the document with the `list_comments` tool. Pass the `documentId` of the document. When `hasNextPage` is true, read the next pages too.
 4. Write the content to a scratch file outside any repository, with no edits. Write the comments of every page to one scratch file as one list, in the same way.
 5. Group the comments into threads:
