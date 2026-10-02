@@ -48,22 +48,20 @@ claude plugin update sdlc-kit@thesis-sdlc-kit
 
 ### Usage
 
-A stage of work starts with an intent, continues with a spec and ends with the build of the plan.
-
-Each document starts with a frontmatter of fields, such as `owner` and `relates`. The skills write and update these fields. Do not edit the frontmatter by hand. No field holds the state of a document. You decide when a document is ready for the next command.
+A stage of work starts with an intent, continues with a spec and ends with the build of the plan. You decide when a document is ready for the next command. Each document starts with a frontmatter of fields, such as `owner` and `relates`. The skills keep these fields. Do not edit the frontmatter by hand.
 
 1. Run `/sdlc-kit:intent`. Answer the questions, one at a time. Say "unknown" when you do not know. You get a Linear document `Intent: <name>`, with one comment per open problem, addressed to the person who can answer it.
-2. Discuss each open problem in its comment thread. Write the decision into the intent, then resolve the thread. When the intent is ready, go to step 3. Each open problem then has an answer, or it goes to the spec as an open problem.
-3. Run `/sdlc-kit:spec <Linear URL of the intent>`. The command looks for a spec of the intent first. The search is best effort. When it finds one, the command asks you what to do. When it finds none, you check that no spec exists. The command reports each open thread on the intent and goes on. Confirm the list of open problems and decisions that Claude shows you. Answer the questions that its research cannot settle. You get a Linear document `Spec: <name>`, linked to the intent, with one comment per open decision. The intent links the spec.
-4. Settle each open decision in its comment thread. Write the decision into the spec, then resolve the thread. When the spec is ready, go to step 5.
-5. Run `/sdlc-kit:plan <Linear URL of the spec>` in a checkout of the repository where the feature lands. The command looks for a plan of the spec first, in the pull requests and the branches of the repository. The search is best effort. When it finds one, the command asks you what to do. When it finds none, you check that no plan exists. The command reports each open thread and each resolved thread with no outcome in the text, and goes on. Accept or change the name of the stage directory, `.sdlc-kit/YYYY-MM-<slug>/`. Answer the questions about the repository, such as the CI gates and stacked pull requests. You get a pull request with the intent, the spec and the plan, ready for review. Both Linear documents link it. From here, git holds the intent and the spec.
-6. Review the shape of the plan, not each line, and merge it. Build each phase in its own pull request. Edit the plan in a code pull request only when the work finds something unexpected that changes the plan. When the last phase merges, the stage is done.
+2. Settle each open problem in its comment thread. Write the answer into the intent, then resolve the thread. A problem with no answer yet goes to the spec.
+3. Run `/sdlc-kit:spec <Linear URL of the intent>`. When a spec of the intent exists, the command asks you what to do. Confirm the list of open problems and decisions that Claude shows you. Answer the questions that its research cannot settle. You get a Linear document `Spec: <name>`, linked to the intent, with one comment per open decision.
+4. Settle each open decision in its comment thread. Write the decision into the spec, then resolve the thread.
+5. Run `/sdlc-kit:plan <Linear URL of the spec>` in a checkout of the repository where the feature lands. When a plan of the spec exists, the command asks you what to do. Accept or change the name of the stage directory, `.sdlc-kit/YYYY-MM-<slug>/`. Answer the questions about the repository, such as the CI gates and stacked pull requests. You get a pull request with the intent, the spec and the plan, ready for review. From here, git holds the intent and the spec.
+6. Review the shape of the plan, not each line, and merge it. Build each phase in its own pull request. Edit the plan only when the work finds something unexpected that changes it. When the last phase merges, the stage is done.
 
-When comments pile up on an intent, a spec or a plan pull request, run `/sdlc-kit:steward <URL>`. Pass the URL of the Linear document or of the pull request. One run works every open thread at that moment and stops. Claude makes the copy edits, answers the questions with a source, and leaves each decision to the owner.
+When comments pile up on an intent, a spec or a plan pull request, run `/sdlc-kit:steward <URL>`. Claude makes the copy edits, answers the questions with a source, and leaves each decision to you.
 
-Every document and every comment follows the writing rules of the plugin, based on Simplified Technical English. A save to Linear or a push of a stage document that breaks the rules is denied with the findings. Claude fixes the text and retries. After three failed attempts, Claude gives you the findings and the path of the draft, and offers to file them with `/sdlc-kit:feedback`.
+Every document and every comment follows the writing rules of the plugin, based on Simplified Technical English. A save or a push that breaks the rules is denied, and Claude fixes the text and retries. After three failed attempts, Claude gives you the findings and offers to file them with `/sdlc-kit:feedback`.
 
-Run `/sdlc-kit:feedback` to report a problem or an idea about the plugin. A reporter with no GitHub account can use it too, because the report goes to Linear only. The issue lands in the triage of the Linear team that the plugin names, and that team must exist.
+Run `/sdlc-kit:feedback` to report a problem or an idea about the plugin. The report goes to Linear only, so a reporter with no GitHub account can use it too.
 
 ### All commands
 
