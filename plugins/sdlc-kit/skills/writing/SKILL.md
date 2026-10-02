@@ -197,10 +197,10 @@ These rules add to the copied rule.
 
 - **Cross-references.** A reference to another stage document names the document and the numbered section title. The quoted part is a link to that heading. In markdown the form is `spec section ["7. Deliverables"](spec.md#7-deliverables)`. In a Linear document the link goes to the heading of the other Linear document. The lint checks the form. For a local file, the lint also checks that the number and the title match a heading there.
 - **Source every fact.** A number, an address or a behavior of an external system carries its source. The source is a link, or a named person in one of these two forms:
-  - `Source: an estimate of <role>, <name>.` An example is `The team gets 1 to 2 incidents each day. Source: an estimate of the owner, Łukasz Zimnoch.`
-  - `Source: a decision of <role>, <name>.` An example is `The deadline is 31 October 2026. Source: a decision of the owner, Łukasz Zimnoch.`
+  - `Source: an estimate of <name>.` An example is `The team gets 1 to 2 incidents each day. Source: an estimate of Łukasz Zimnoch.`
+  - `Source: a decision of <name>.` An example is `The deadline is 31 October 2026. Source: a decision of Łukasz Zimnoch.`
 
-  The role is optional. The name is not: a role alone, such as `the owner`, is no source. A `Source:` sentence covers the facts of the paragraph or list item that holds it.
+  The name is required. A role alone, such as `the owner`, is no source. A `Source:` sentence covers the facts of the paragraph or list item that holds it.
 
   A fact carries its source at least once in the document. Put the source next to the fact in the section that explains the fact. A summary, such as "1. Executive summary" of an intent, can repeat a sourced fact with no source. A fact that only the summary states carries its source in the summary.
 
