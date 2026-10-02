@@ -2,7 +2,7 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Node gives import.meta.url as the real path and argv[1] as the typed path.
@@ -106,7 +106,7 @@ function namedTypes({ title, content }) {
 export function noFrontmatterReason(name, type) {
   return (
     `document-gate: ${name} is ${article(type)}, but its content has no frontmatter. ` +
-    `Start the content with a \`\`\`yaml block that holds "type: ${type}" and the other fields of the ${type} template. Then repeat the call.`
+    `Start the content with a "---" block that holds "type: ${type}" and the other fields of the ${type} template. Then repeat the call.`
   );
 }
 
@@ -487,8 +487,9 @@ function pushedRefs(push) {
  * fetch. A change that a merge commit makes itself counts too. When no
  * remote has a remote-tracking ref, as before a first push to an empty
  * remote, every commit is new, so the list holds every markdown file under
- * `.sdlc-kit/` at the local ref. Returns null when the directory is not in a
- * git repository.
+ * `.sdlc-kit/` at the local ref. Each document has `exists(name)`, which
+ * tells whether the file `name` is next to it at the pushed ref. Returns
+ * null when the directory is not in a git repository.
  */
 export function pushedDocuments(push) {
   if (!existsSync(push.dir) || !statSync(push.dir).isDirectory()) return null;
@@ -506,7 +507,12 @@ export function pushedDocuments(push) {
     );
     for (const path of changedPaths(inTop, local)) {
       if (!atLocal.has(path) || !path.endsWith('.md')) continue;
-      documents.push({ ref: local, path, text: () => git(inTop, ['show', `${local}:${path}`]) });
+      documents.push({
+        ref: local,
+        path,
+        text: () => git(inTop, ['show', `${local}:${path}`]),
+        exists: (name) => atLocal.has(posix.join(posix.dirname(path), name)),
+      });
     }
   }
   return documents;
@@ -631,13 +637,14 @@ const REPEAT_JUDGE = 'Fix each finding. Then repeat the call.';
  * Every error of the judge run denies too. The judge run gets the time left
  * until `deadline`, and with less than `floorMs` left the gate denies with no
  * judge run. `form` is the form of the lint: "linear" for a save, "git"
- * for a file of a push. Returns the decision, the reason of a denial, the
- * stage that decided and the cost of the judge run.
+ * for a file of a push. `exists` goes to the lint, for the files of the
+ * `relates` field. Returns the decision, the reason of a denial, the stage
+ * that decided and the cost of the judge run.
  */
-export function gate(text, { type, form, name, env = process.env, deadline = Date.now() + GATE_BUDGET_MS, floorMs = JUDGE_FLOOR_MS } = {}) {
+export function gate(text, { type, form, name, exists, env = process.env, deadline = Date.now() + GATE_BUDGET_MS, floorMs = JUDGE_FLOOR_MS } = {}) {
   requireLint();
   text = stripAnchors(stripBom(text));
-  const findings = lintText(text, { type, form, path: name });
+  const findings = lintText(text, { type, form, path: name, exists });
   if (findings.length) {
     const lines = findings.map((f) => `${f.path}:${f.line}: ${f.rule}: ${f.message}`);
     return { decision: 'deny', stage: 'lint', reason: `document-gate: the lint found these lines in ${name}:\n${lines.join('\n')}\n${REPEAT_SAVE}` };
@@ -709,7 +716,7 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
       const pushed = pushedDocuments(push);
       if (pushed === null) continue;
       for (const doc of pushed) {
-        const result = gate(doc.text(), { type: documentType({ path: doc.path }), form: 'git', name: doc.path, ...limits });
+        const result = gate(doc.text(), { type: documentType({ path: doc.path }), form: 'git', name: doc.path, exists: doc.exists, ...limits });
         documents.push({ name: doc.path, decision: result.decision });
         if (result.decision === 'deny') return { ...result, documents };
       }

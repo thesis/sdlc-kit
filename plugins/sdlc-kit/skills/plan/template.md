@@ -1,6 +1,6 @@
 ---
 type: plan
-implements: spec.md @ <sha> · intent.md @ <sha>
+relates: spec.md, intent.md
 ---
 
 # Plan: <name>

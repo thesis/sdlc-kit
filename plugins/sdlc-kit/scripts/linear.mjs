@@ -105,7 +105,7 @@ export function exportDocument(content, { url, title, at = isoNow() }) {
   if (Number.isNaN(Date.parse(at))) throw new Error(`"${at}" is not an ISO time`);
   const lines = splitLines(unwrapLinkTargets(stripAnchors(content)));
   const fm = readFrontmatter(lines.join('\n'));
-  if (!fm) throw new Error('the content has no frontmatter; an intent or a spec in Linear starts with a ```yaml block');
+  if (!fm) throw new Error('the content has no frontmatter; an intent or a spec in Linear starts with a "---" block or a ```yaml block');
   if (fm.errors.length) throw new Error(`line ${fm.errors[0].index + 1}: ${fm.errors[0].message}`);
   const type = fm.fields.type?.value;
   if (!TITLE_PREFIX[type]) throw new Error(`the frontmatter type is "${type ?? ''}"; only an intent or a spec exports`);

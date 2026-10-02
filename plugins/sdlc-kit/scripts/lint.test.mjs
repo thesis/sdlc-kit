@@ -32,18 +32,25 @@ const SECTION_TEXT = {
 
 const INTENT_URL = 'https://linear.app/thesis/document/intent-1';
 
+// The Linear form of a draft in the template: the intent and spec skills
+// remove the title line before the lint and the save, because the name goes
+// to the title of the Linear document.
+function linearDraft(text) {
+  return text.replace(/^# (?:Intent|Spec): .*\n\n/m, '');
+}
+
 // Builds a first draft the way the intent and spec skills do: the Linear
 // form, with the frontmatter fields that the skill sets before the save.
 // Text replaces each guidance comment, and the draft drops the closing
 // "Not here" comment.
 function fillTemplate(type) {
-  const lines = templateText(type)
+  const lines = linearDraft(templateText(type))
     .replace(/\n<!--\n[\s\S]*?-->\n/, '\n')
     .split('\n')
     .map((line) => {
       if (line.startsWith('owner:')) return 'owner: Ana Nowak';
-      if (line.startsWith('status:')) return 'status: in review';
-      if (line.startsWith('implements:')) return `implements: Intent ${INTENT_URL}`;
+      if (line.startsWith('status:')) return 'status: review';
+      if (line.startsWith('relates:')) return `relates: ${INTENT_URL}`;
       return line;
     });
   let heading = null;
@@ -71,13 +78,12 @@ const PLAN_TEXT = {
 };
 
 // Builds a first plan the way the plan skill does: no guidance comments,
-// the export commit in the header, one row per phase in the work order, and
-// text under each heading. "7. What changed" stays empty.
+// one row per phase in the work order, and text under each heading.
+// "7. What changed" stays empty.
 function fillPlan() {
   const text = templateText('plan')
     .replace(/\n?<!--[\s\S]*?-->\n?/g, '\n')
     .replace('<name>', 'Vault on Robinhood')
-    .replace(/^implements: .*$/m, 'implements: spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8')
     .replace('<title>', 'The deploy script')
     .replace('| --- | --- | --- |', '| --- | --- | --- |\n| 1. The deploy script | None | npm test exits with 0 |');
   return text
@@ -92,7 +98,7 @@ function fillPlan() {
 
 const PLAN = `---
 type: plan
-implements: spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8
+relates: spec.md, intent.md
 ---
 
 # Plan: Vault on Robinhood
@@ -132,6 +138,14 @@ function tempDir() {
   return mkdtempSync(join(tmpdir(), 'sdlc-kit-lint-'));
 }
 
+// A stage directory with the git files of the intent and the spec.
+function stageDir() {
+  const dir = tempDir();
+  writeFileSync(join(dir, 'intent.md'), exportTemplate('intent'));
+  writeFileSync(join(dir, 'spec.md'), exportTemplate('spec'));
+  return dir;
+}
+
 describe('templates', () => {
   for (const type of ['intent', 'spec', 'plan']) {
     test(`the ${type} template headings match the lint table`, () => {
@@ -144,14 +158,22 @@ describe('templates', () => {
         TEMPLATES[type].sections.map((s, i) => `${i + 1}. ${s.title}`),
       );
     });
+
+    test(`the ${type} template starts with the frontmatter fields of the lint, then the title line`, () => {
+      const lines = templateText(type).split('\n');
+      const end = lines.indexOf('---', 1);
+      assert.equal(lines[0], '---');
+      assert.deepEqual(lines.slice(1, end).map((l) => l.split(':')[0]), TEMPLATES[type].fields);
+      assert.deepEqual(lines.slice(end + 1, end + 3), ['', `# ${TEMPLATES[type].prefix}: <name>`]);
+    });
   }
 
   test('a first plan as the skill writes it has no findings', () => {
     assert.deepEqual(lintText(fillPlan(), { type: 'plan' }), []);
   });
 
-  test('the cli exits with 0 on a first plan as the skill writes it', () => {
-    const draft = join(tempDir(), 'plan.md');
+  test('the cli exits with 0 on a first plan as the skill writes it, next to the intent and the spec', () => {
+    const draft = join(stageDir(), 'plan.md');
     writeFileSync(draft, fillPlan());
     const r = spawnSync(process.execPath, [lintScript, '--type', 'plan', draft], { encoding: 'utf8' });
     assert.equal(r.stdout, '');
@@ -187,8 +209,8 @@ describe('templates', () => {
       assert.equal(r.status, 0);
     });
 
-    test(`an unfilled ${type} template fails only on placeholders, status and empty sections`, () => {
-      const found = new Set(rules(templateText(type), type));
+    test(`an unfilled ${type} template in the Linear form fails only on placeholders, status and empty sections`, () => {
+      const found = new Set(rules(linearDraft(templateText(type)), type));
       assert.ok(found.has('structure-empty-section'));
       for (const rule of found) {
         assert.ok(
@@ -276,22 +298,6 @@ describe('structure', () => {
   test('requirements with no R numbers fail', () => {
     const text = spec.replace('- R1: A lender', '- A lender').replace('- R2: The page', '- The page');
     assert.ok(rules(text, 'spec').includes('structure-numbered-items'));
-  });
-
-  for (const [name, value] of [
-    ['a missing sha', 'spec.md · intent.md @ 1a2b3c4'],
-    ['a sha of six characters', 'spec.md @ 1a2b3c · intent.md @ 1a2b3c4'],
-    ['the files in the other order', 'intent.md @ 1a2b3c4 · spec.md @ 1a2b3c4'],
-    ['a sha that is not hex', 'spec.md @ main · intent.md @ 1a2b3c4'],
-  ]) {
-    test(`a plan Implements field with ${name} fails`, () => {
-      assert.deepEqual(rules(PLAN.replace('spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8', value), 'plan'), ['structure-implements']);
-    });
-  }
-
-  test('a plan Implements field with two full shas passes', () => {
-    const sha = 'a'.repeat(40);
-    assert.deepEqual(rules(PLAN.replace('spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8', `spec.md @ ${sha} · intent.md @ ${sha}`), 'plan'), []);
   });
 
   test('a work order with no table fails', () => {
@@ -396,7 +402,7 @@ describe('frontmatter', () => {
   const spec = fillTemplate('spec');
   const body = (text) => text.slice(text.indexOf('\n## 1.'));
   const fence = (fields) => `\`\`\`yaml\n${fields.join('\n')}\n\`\`\`\n`;
-  const INTENT_FIELDS = ['type: intent', 'owner: Ana Nowak', 'status: in review'];
+  const INTENT_FIELDS = ['type: intent', 'owner: Ana Nowak', 'status: review'];
   const withFields = (fields) => `${fence(fields)}${body(intent)}`;
   const gitIntent = exportTemplate('intent');
   const gitSpec = exportTemplate('spec');
@@ -404,13 +410,13 @@ describe('frontmatter', () => {
   describe('in the Linear form', () => {
     test('the form that Linear stores for a saved "---" block passes', () => {
       const stored =
-        '```yaml\ntype: spec\nowner: Łukasz Zimnoch\nstatus: in review\n' +
-        'implements: Intent https://linear.app/thesis-co/document/example-1234abcd\n```\n';
+        '```yaml\ntype: spec\nowner: Łukasz Zimnoch\nstatus: review\n' +
+        'relates: https://linear.app/thesis-co/document/example-1234abcd\n```\n';
       assert.deepEqual(rules(`${stored}${body(spec)}`, 'spec'), []);
     });
 
-    test('a "---" block passes', () => {
-      assert.deepEqual(rules(`---\n${INTENT_FIELDS.join('\n')}\n---\n${body(intent)}`, 'intent'), []);
+    test('a ```yaml block passes', () => {
+      assert.deepEqual(rules(withFields(INTENT_FIELDS), 'intent'), []);
     });
 
     test('a frontmatter after blank lines passes', () => {
@@ -418,7 +424,7 @@ describe('frontmatter', () => {
     });
 
     test('a title line fails, because Linear shows the title of the document', () => {
-      const found = lintText(intent.replace('```\n', '```\n\n# Intent: Vault on Robinhood\n'), { type: 'intent' });
+      const found = lintText(intent.replace('---\n\n', '---\n\n# Intent: Vault on Robinhood\n\n'), { type: 'intent' });
       assert.deepEqual(found.map((f) => [f.line, f.rule]), [[7, 'structure-title']]);
     });
 
@@ -428,10 +434,10 @@ describe('frontmatter', () => {
     });
 
     test('a document of the old form fails with the steps to convert it', () => {
-      const old = `# Intent: Vault on Robinhood\nOwner: Ana Nowak · Status: in review\nLinear: ${INTENT_URL}\n${body(intent)}`;
+      const old = `# Intent: Vault on Robinhood\nOwner: Ana Nowak · Status: review\nLinear: ${INTENT_URL}\n${body(intent)}`;
       const found = lintText(old, { type: 'intent' });
       assert.deepEqual(found.map((f) => [f.line, f.rule]), [[1, 'structure-frontmatter'], [1, 'structure-title']]);
-      assert.match(found[0].message, /^the document has no frontmatter; start it with a ```yaml block of the fields type, owner and status\./);
+      assert.match(found[0].message, /^the document has no frontmatter; start it with a "---" block of the fields type, owner and status\./);
       assert.match(found[0].message, /move the values of its "Owner:", "Status:", "Linear:" and "Exported:" lines into these fields, and remove the "# Intent:" line$/);
     });
   });
@@ -478,7 +484,7 @@ describe('frontmatter', () => {
       const old = PLAN.replace(/^---\n[\s\S]*?\n---\n\n(# Plan: .*\n)/, '$1Implements: spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8\n');
       const found = lintText(old, { type: 'plan' });
       assert.deepEqual(found.map((f) => f.rule), ['structure-frontmatter']);
-      assert.match(found[0].message, /^the file has no frontmatter; start it with a "---" block of the fields type and implements, above the "# Plan: <name>" line\. .*the values of its "Implements:" lines into these fields$/);
+      assert.match(found[0].message, /^the file has no frontmatter; start it with a "---" block of the fields type and relates, above the "# Plan: <name>" line\. .*the values of its "Implements:" lines into these fields$/);
     });
 
     test('the plan has no Linear form', () => {
@@ -491,12 +497,12 @@ describe('frontmatter', () => {
       ['no type field', INTENT_FIELDS.slice(1), 'structure-frontmatter'],
       ['the type of another document', ['type: spec', ...INTENT_FIELDS.slice(1)], 'structure-frontmatter'],
       ['a field that the type does not take', [...INTENT_FIELDS, `linear: ${INTENT_URL}`], 'structure-frontmatter'],
-      ['no owner field', ['type: intent', 'status: in review'], 'structure-owner'],
-      ['an empty owner field', ['type: intent', 'owner:', 'status: in review'], 'structure-owner'],
+      ['no owner field', ['type: intent', 'status: review'], 'structure-owner'],
+      ['an empty owner field', ['type: intent', 'owner:', 'status: review'], 'structure-owner'],
       ['no status field', INTENT_FIELDS.slice(0, 2), 'structure-status'],
       ['a status outside the list', ['type: intent', 'owner: Ana Nowak', 'status: done'], 'structure-status'],
-      ['a placeholder', ['type: intent', 'owner: <name>', 'status: in review'], 'structure-placeholder'],
-      ['an em-dash', ['type: intent', 'owner: Ana — Nowak', 'status: in review'], 'em-dash'],
+      ['a placeholder', ['type: intent', 'owner: <name>', 'status: review'], 'structure-placeholder'],
+      ['an em-dash', ['type: intent', 'owner: Ana — Nowak', 'status: review'], 'em-dash'],
     ]) {
       test(`an intent with ${name} fails`, () => {
         assert.deepEqual(rules(withFields(fields), 'intent'), [rule]);
@@ -504,39 +510,58 @@ describe('frontmatter', () => {
     }
 
     test('a status in upper case passes', () => {
-      assert.deepEqual(rules(withFields(['type: intent', 'owner: Ana Nowak', 'status: In review']), 'intent'), []);
+      assert.deepEqual(rules(withFields(['type: intent', 'owner: Ana Nowak', 'status: Review']), 'intent'), []);
     });
 
-    test('a spec with no implements field fails', () => {
-      assert.deepEqual(rules(spec.replace(/^implements: .*\n/m, ''), 'spec'), ['structure-implements']);
+    test('a spec with no relates field fails', () => {
+      assert.deepEqual(rules(spec.replace(/^relates: .*\n/m, ''), 'spec'), ['structure-relates']);
     });
 
-    test('a spec implements field that is not "Intent <URL>" fails', () => {
-      assert.deepEqual(rules(spec.replace(`implements: Intent ${INTENT_URL}`, 'implements: the intent'), 'spec'), ['structure-implements']);
-    });
-
-    test('a plan with no implements field fails', () => {
-      assert.deepEqual(rules(PLAN.replace(/^implements: .*\n/m, ''), 'plan'), ['structure-implements']);
-    });
-
-    for (const [name, value] of [
-      ['a missing sha', 'spec.md · intent.md @ 1a2b3c4'],
-      ['a sha of six characters', 'spec.md @ 1a2b3c · intent.md @ 1a2b3c4'],
-      ['the files in the other order', 'intent.md @ 1a2b3c4 · spec.md @ 1a2b3c4'],
-      ['a sha that is not hex', 'spec.md @ main · intent.md @ 1a2b3c4'],
-    ]) {
-      test(`a plan implements field with ${name} fails`, () => {
-        assert.deepEqual(rules(PLAN.replace('spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8', value), 'plan'), ['structure-implements']);
+    for (const value of [`Intent ${INTENT_URL}`, 'the intent', 'intent.md']) {
+      test(`a spec relates field that is not a bare URL fails: ${value}`, () => {
+        const found = lintText(spec.replace(`relates: ${INTENT_URL}`, `relates: ${value}`), { type: 'spec' });
+        assert.deepEqual(found.map((f) => [f.line, f.rule, f.message]), [[5, 'structure-relates', 'write the field as "relates: <intent URL>"']]);
       });
     }
 
-    test('a plan implements field with two full shas passes', () => {
-      const sha = 'a'.repeat(40);
-      assert.deepEqual(rules(PLAN.replace('spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8', `spec.md @ ${sha} · intent.md @ ${sha}`), 'plan'), []);
+    test('a plan with no relates field fails', () => {
+      assert.deepEqual(rules(PLAN.replace(/^relates: .*\n/m, ''), 'plan'), ['structure-relates']);
+    });
+
+    for (const [name, value] of [
+      ['the sha pin of the old form', 'spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8'],
+      ['the files in the other order', 'intent.md, spec.md'],
+      ['a path outside the stage directory', '../spec.md, intent.md'],
+      ['only the spec', 'spec.md'],
+    ]) {
+      test(`a plan relates field with ${name} fails`, () => {
+        const found = lintText(PLAN.replace('relates: spec.md, intent.md', `relates: ${value}`), { type: 'plan' });
+        assert.deepEqual(found.map((f) => [f.line, f.rule, f.message]), [[3, 'structure-relates', 'write the field as "relates: spec.md, intent.md"']]);
+      });
+    }
+
+    test('a plan next to its intent and spec passes', () => {
+      assert.deepEqual(rules(PLAN, 'plan', { path: join(stageDir(), 'plan.md') }), []);
+    });
+
+    test('a plan with no intent next to it fails on the relates line', () => {
+      const dir = tempDir();
+      writeFileSync(join(dir, 'spec.md'), exportTemplate('spec'));
+      const found = lintText(PLAN, { type: 'plan', path: join(dir, 'plan.md') });
+      assert.deepEqual(found.map((f) => [f.line, f.rule, f.message]), [[3, 'structure-relates', 'the plan relates to intent.md, but no intent.md is next to it']]);
+    });
+
+    test('the exists option replaces the look in the directory of the path', () => {
+      const found = lintText(PLAN, { type: 'plan', path: join(stageDir(), 'plan.md'), exists: (name) => name === 'intent.md' });
+      assert.deepEqual(found.map((f) => f.message), ['the plan relates to spec.md, but no spec.md is next to it']);
+    });
+
+    test('a plan with no path skips the look for the related files', () => {
+      assert.deepEqual(rules(PLAN, 'plan'), []);
     });
 
     test('a value in double quotes passes', () => {
-      assert.deepEqual(rules(withFields(['type: intent', 'owner: "Ana: Nowak"', 'status: in review']), 'intent'), []);
+      assert.deepEqual(rules(withFields(['type: intent', 'owner: "Ana: Nowak"', 'status: review']), 'intent'), []);
     });
 
     for (const [name, line] of [
@@ -548,7 +573,7 @@ describe('frontmatter', () => {
       ['no colon', 'core team'],
     ]) {
       test(`a frontmatter line with ${name} fails on its line`, () => {
-        const found = lintText(withFields(['type: intent', line, 'owner: Ana Nowak', 'status: in review']), { type: 'intent' });
+        const found = lintText(withFields(['type: intent', line, 'owner: Ana Nowak', 'status: review']), { type: 'intent' });
         assert.deepEqual(found.map((f) => [f.line, f.rule]), [[3, 'structure-frontmatter']]);
       });
     }
@@ -559,7 +584,7 @@ describe('frontmatter', () => {
     });
 
     test('a frontmatter with no closing line fails', () => {
-      assert.ok(rules(intent.replace('status: in review\n```\n', 'status: in review\n'), 'intent').includes('structure-frontmatter'));
+      assert.ok(rules(intent.replace('status: review\n---\n', 'status: review\n'), 'intent').includes('structure-frontmatter'));
     });
   });
 });

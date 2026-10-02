@@ -4,7 +4,7 @@ import { basename, dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readFrontmatter, stripAnchors } from './linear.mjs';
 
-export const STATUSES = ['draft', 'in review', 'agreed', 'frozen'];
+export const STATUSES = ['draft', 'review', 'frozen'];
 export const FORMS = ['linear', 'git'];
 
 // The frontmatter fields and the top-level headings of each stage template,
@@ -12,6 +12,8 @@ export const FORMS = ['linear', 'git'];
 // that also lives in Linear. `exported` marks a type whose git file takes
 // the `exported` field. `oldHeader` names the header lines of the form
 // before the frontmatter, for the finding that tells how to convert it.
+// `relatesForm` is the form of the `relates` field. `relatesFiles` names the
+// files that the field links, which must exist next to the document.
 export const TEMPLATES = {
   intent: {
     prefix: 'Intent',
@@ -31,12 +33,12 @@ export const TEMPLATES = {
   },
   spec: {
     prefix: 'Spec',
-    fields: ['type', 'owner', 'status', 'implements'],
+    fields: ['type', 'owner', 'status', 'relates'],
     linear: true,
     exported: true,
     oldHeader: ['Implements:', 'Owner:', 'Status:', 'Exported:'],
-    implementsForm: /^Intent https?:\/\/\S+$/,
-    implementsHint: 'Intent <intent URL>',
+    relatesForm: /^https?:\/\/\S+$/,
+    relatesHint: '<intent URL>',
     sections: [
       { title: 'Terms' },
       { title: 'Scope' },
@@ -53,13 +55,13 @@ export const TEMPLATES = {
   },
   plan: {
     prefix: 'Plan',
-    fields: ['type', 'implements'],
+    fields: ['type', 'relates'],
     linear: false,
     exported: false,
     oldHeader: ['Implements:'],
-    implementsForm: /^spec\.md @ [0-9a-f]{7,40} · intent\.md @ [0-9a-f]{7,40}$/,
-    implementsHint: 'spec.md @ <sha> · intent.md @ <sha>',
-    implementsNote: ', each sha with 7 to 40 hex characters',
+    relatesForm: /^spec\.md, intent\.md$/,
+    relatesHint: 'spec.md, intent.md',
+    relatesFiles: ['spec.md', 'intent.md'],
     sections: [
       { title: 'Summary' },
       { title: 'Work order', table: ['Phase', 'Depends on', 'Merge gate'] },
@@ -512,7 +514,7 @@ function missingFrontmatter(type, form) {
   const fields = listWords(template.fields);
   const start = form === 'git'
     ? `the file has no frontmatter; start it with a "---" block of the fields ${fields}, above the "# ${template.prefix}: <name>" line`
-    : `the document has no frontmatter; start it with a \`\`\`yaml block of the fields ${fields}`;
+    : `the document has no frontmatter; start it with a "---" block of the fields ${fields}`;
   const lines = listWords(template.oldHeader.map((l) => `"${l}"`));
   const title = form === 'git' ? '' : `, and remove the "# ${template.prefix}:" line`;
   return `${start}. To convert a document of the old form, move the values of its ${lines} lines into these fields${title}`;
@@ -520,8 +522,9 @@ function missingFrontmatter(type, form) {
 
 // Checks the frontmatter fields of a stage document. The `type` field must
 // name the type of the lint. The `exported` field belongs only to the git
-// file of a type that Linear exports, and there it is required.
-function checkFields(frontmatter, type, form, add) {
+// file of a type that Linear exports, and there it is required. With no
+// `exists`, the lint does not check the files of the `relates` field.
+function checkFields(frontmatter, type, form, exists, add) {
   const template = TEMPLATES[type];
   const { fields } = frontmatter;
   const top = frontmatter.start + 1;
@@ -547,10 +550,16 @@ function checkFields(frontmatter, type, form, add) {
       add(status.index + 1, 'structure-status', `status "${status.value}" is not one of: ${STATUSES.join(', ')}`);
     }
   }
-  if (template.fields.includes('implements')) {
-    const field = required('implements', 'structure-implements');
-    if (field && !new RegExp(PLACEHOLDER.source, 'i').test(field.value) && !template.implementsForm.test(field.value)) {
-      add(field.index + 1, 'structure-implements', `write the field as "implements: ${template.implementsHint}"${template.implementsNote ?? ''}`);
+  if (template.fields.includes('relates')) {
+    const field = required('relates', 'structure-relates');
+    if (field && !new RegExp(PLACEHOLDER.source, 'i').test(field.value)) {
+      if (!template.relatesForm.test(field.value)) {
+        add(field.index + 1, 'structure-relates', `write the field as "relates: ${template.relatesHint}"`);
+      } else if (exists) {
+        for (const name of template.relatesFiles ?? []) {
+          if (!exists(name)) add(field.index + 1, 'structure-relates', `the ${type} relates to ${name}, but no ${name} is next to it`);
+        }
+      }
     }
   }
   const exported = fields.exported;
@@ -565,7 +574,7 @@ function checkFields(frontmatter, type, form, add) {
   }
 }
 
-function checkStructure(doc, type, form, add) {
+function checkStructure(doc, type, form, exists, add) {
   const template = TEMPLATES[type];
   const headingLines = [];
   doc.lines.forEach((line, i) => {
@@ -583,7 +592,7 @@ function checkStructure(doc, type, form, add) {
     if (form === 'git' && (frontmatter.form !== 'dashes' || frontmatter.start !== 0)) {
       add(frontmatter.start + 1, 'structure-frontmatter', 'a git file starts on line 1 with the frontmatter between two "---" lines');
     }
-    if (frontmatter.end > 0) checkFields(frontmatter, type, form, add);
+    if (frontmatter.end > 0) checkFields(frontmatter, type, form, exists, add);
   }
 
   // Linear shows the title of the document above the content, so a title
@@ -783,9 +792,11 @@ function sectionItems(body) {
  * Returns the findings for one document as {path, line, rule, message}.
  * `form` is the form of a stage document: "linear" for the content of a
  * Linear document, "git" for a file under .sdlc-kit/. It defaults to
- * defaultForm(type), and the prose type ignores it.
+ * defaultForm(type), and the prose type ignores it. `exists(name)` tells
+ * whether the file `name` is next to the document. It defaults to a look in
+ * the directory of `path`, and with no `path` the lint skips that check.
  */
-export function lintText(text, { type, form = defaultForm(type), path = '<input>' } = {}) {
+export function lintText(text, { type, form = defaultForm(type), path = '<input>', exists } = {}) {
   if (!TYPES.includes(type)) throw new Error(`unknown type "${type}"`);
   const formError = checkForm(type, form);
   if (formError) throw new Error(formError);
@@ -795,8 +806,9 @@ export function lintText(text, { type, form = defaultForm(type), path = '<input>
   // They are not part of the text, so the lint removes them before any check.
   const doc = parse(stripAnchors(text), { honorDisable: type === 'prose', stage: type !== 'prose' });
   const context = { path: path === '<input>' ? null : path, headings: new Map() };
+  exists ??= context.path ? (name) => existsSync(resolve(dirname(context.path), name)) : null;
 
-  if (type !== 'prose') checkStructure(doc, type, form, add);
+  if (type !== 'prose') checkStructure(doc, type, form, exists, add);
   checkEmDash(doc, add);
   for (const block of doc.blocks) {
     const codeMasked = maskCode(maskHtmlComments(block.text));

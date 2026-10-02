@@ -37,13 +37,13 @@ As an alternative to the marketplace, upload the plugin to Cowork as a package.
 
 A stage of work starts with an intent, continues with a spec and ends with the build of the plan.
 
-Each document starts with a block of fields: `type`, `owner`, `status` and, for the spec and the plan, `implements`. In Linear the block is a `yaml` code block at the top of the document. In git it is the frontmatter above the title line.
+Each document starts with a frontmatter of fields, such as `owner` and `status`. The skills write and update these fields. Do not edit the frontmatter by hand.
 
 1. Run `/sdlc-kit:intent`. Answer the questions, one at a time. Say "unknown" when you do not know. You get a Linear document `Intent: <name>`, with a first comment that lists the open problems and @mentions the people who can answer them.
-2. Discuss each open problem in its comment thread. Resolve the thread when the decision is made. When every open problem has an answer, or goes to the spec, set the `status` field of the intent to `agreed`.
-3. Run `/sdlc-kit:spec <Linear URL of the intent>`. Confirm the list of open problems and decisions that Claude shows you. Answer the questions that its research cannot settle. You get a Linear document `Spec: <name>`, linked to the intent, with one comment per open decision.
-4. Settle each open decision in its comment thread. When no open decision blocks the plan, set the `status` field of the spec to `agreed`.
-5. Run `/sdlc-kit:plan <Linear URL of the spec>` in a checkout of the repository where the feature lands. The command stops when the spec is not agreed, or when a resolved thread has no outcome in the text. Accept or change the name of the stage directory, `.sdlc-kit/YYYY-MM-<slug>/`. Answer the questions about the repository, such as the CI gates and stacked pull requests. You get a pull request with the frozen intent and spec and the plan, ready for review. Both Linear documents get its link. From here, git holds the intent and the spec.
+2. Discuss each open problem in its comment thread. Write the decision into the intent, then resolve the thread. When every thread is resolved, go to step 3. Each open problem then has an answer, or it goes to the spec as an open problem.
+3. Run `/sdlc-kit:spec <Linear URL of the intent>`. The command stops when a thread on the intent is open. Confirm the list of open problems and decisions that Claude shows you. Answer the questions that its research cannot settle. You get a Linear document `Spec: <name>`, linked to the intent, with one comment per open decision. The intent is then frozen: it gets no more edits, and a comment on it links the spec.
+4. Settle each open decision in its comment thread. Write the decision into the spec, then resolve the thread. When every thread is resolved and no open decision blocks the plan, go to step 5.
+5. Run `/sdlc-kit:plan <Linear URL of the spec>` in a checkout of the repository where the feature lands. The command stops when the intent is not frozen or a thread on the spec is open. It also stops when a resolved thread has no outcome in the text. Accept or change the name of the stage directory, `.sdlc-kit/YYYY-MM-<slug>/`. Answer the questions about the repository, such as the CI gates and stacked pull requests. You get a pull request with the frozen intent and spec and the plan, ready for review. Both Linear documents get its link. From here, git holds the intent and the spec.
 6. Review the shape of the plan, not each line, and merge it. Build each phase in its own pull request. Edit the plan in a code pull request only when the work finds something unexpected that changes the plan. When the last phase merges, the stage is done.
 
 When comments pile up on an intent, a spec or a plan pull request, run `/sdlc-kit:steward <URL>`. Pass the URL of the Linear document or of the pull request. One run works every open thread at that moment and stops. Claude makes the copy edits, answers the questions with a source, and leaves each decision to the owner.
@@ -55,8 +55,8 @@ Run `/sdlc-kit:feedback` to report a problem or an idea about the plugin. A repo
 ### All commands
 
 - `/sdlc-kit:intent` interviews the owner, writes the intent and creates it as a Linear document.
-- `/sdlc-kit:spec <Linear URL of the intent>` turns an agreed intent into a spec and creates it as a Linear document.
-- `/sdlc-kit:plan <Linear URL of the spec>` freezes the agreed intent and spec, exports them to the repository and writes the plan in a draft pull request.
+- `/sdlc-kit:spec <Linear URL of the intent>` turns an intent with no open thread into a spec, creates it as a Linear document and freezes the intent.
+- `/sdlc-kit:plan <Linear URL of the spec>` freezes a spec with no open thread, exports the spec and the intent to the repository and writes the plan in a draft pull request.
 - `/sdlc-kit:steward <Linear URL of an intent or a spec | GitHub URL of a pull request>` works the open comment threads and leaves each decision to the owner.
 - `/sdlc-kit:feedback` files a problem report or an improvement idea about the plugin as a Linear issue.
 

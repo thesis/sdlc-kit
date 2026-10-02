@@ -1,9 +1,11 @@
-```yaml
+---
 type: spec
 owner: <name>
-status: draft | in review | agreed | frozen
-implements: Intent <url>
-```
+status: draft | review | frozen
+relates: <url>
+---
+
+# Spec: <name>
 
 ## 1. Terms
 <!-- One table. Each term has one meaning. Use each term with that meaning every time. -->

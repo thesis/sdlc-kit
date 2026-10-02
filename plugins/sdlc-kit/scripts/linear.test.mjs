@@ -24,7 +24,7 @@ const TITLE = 'Intent: Weekly export of vault deposits';
 const INTENT = `\`\`\`yaml
 type: intent
 owner: Ana Nowak
-status: agreed
+status: frozen
 \`\`\`
 
 ## 1. Executive summary
@@ -55,8 +55,8 @@ None.
 const STORED_SPEC = `\`\`\`yaml
 type: spec
 owner: Łukasz Zimnoch
-status: in review
-implements: Intent https://linear.app/thesis-co/document/example-1234abcd
+status: review
+relates: https://linear.app/thesis-co/document/example-1234abcd
 \`\`\`
 
 ## 1. Terms
@@ -101,8 +101,8 @@ describe('readFrontmatter', () => {
       fields: {
         type: { value: 'spec', index: 1 },
         owner: { value: 'Łukasz Zimnoch', index: 2 },
-        status: { value: 'in review', index: 3 },
-        implements: { value: 'Intent https://linear.app/thesis-co/document/example-1234abcd', index: 4 },
+        status: { value: 'review', index: 3 },
+        relates: { value: 'https://linear.app/thesis-co/document/example-1234abcd', index: 4 },
       },
       errors: [],
     });
@@ -175,7 +175,7 @@ describe('export', () => {
       '---',
       'type: intent',
       'owner: Ana Nowak',
-      'status: agreed',
+      'status: frozen',
       `exported: ${URL} · ${AT}`,
       '---',
       '',
@@ -192,8 +192,8 @@ describe('export', () => {
         '---',
         'type: spec',
         'owner: Łukasz Zimnoch',
-        'status: in review',
-        'implements: Intent https://linear.app/thesis-co/document/example-1234abcd',
+        'status: review',
+        'relates: https://linear.app/thesis-co/document/example-1234abcd',
         `exported: ${URL} · ${AT}`,
         '---',
         '',
@@ -225,8 +225,8 @@ describe('export', () => {
   });
 
   for (const [name, text, title, message] of [
-    ['a document of the old form', `# Intent: X\nOwner: A · Status: agreed\nLinear: ${URL}\n`, TITLE, /no frontmatter/],
-    ['a plan', '---\ntype: plan\nimplements: spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8\n---\n', 'Plan: X', /type is "plan"; only an intent or a spec exports/],
+    ['a document of the old form', `# Intent: X\nOwner: A · Status: frozen\nLinear: ${URL}\n`, TITLE, /no frontmatter/],
+    ['a plan', '---\ntype: plan\nrelates: spec.md, intent.md\n---\n', 'Plan: X', /type is "plan"; only an intent or a spec exports/],
     ['a frontmatter with an error', '```yaml\ntype: intent\nowner: [A]\n```\n', TITLE, /^Error: line 3: the value of "owner"/],
     ['a title of the other type', INTENT, 'Spec: Weekly export', /names a spec, but the frontmatter type is "intent"/],
     ['a title with no name', INTENT, 'Intent:', /has no name/],

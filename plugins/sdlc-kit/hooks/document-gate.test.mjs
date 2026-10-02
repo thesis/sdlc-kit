@@ -36,7 +36,7 @@ function tempDir(prefix = 'sdlc-kit-gate-') {
 const INTENT = `\`\`\`yaml
 type: intent
 owner: Ana Nowak
-status: in review
+status: review
 \`\`\`
 
 ## 1. Executive summary
@@ -68,9 +68,54 @@ const GIT_INTENT = INTENT.replace(
   '---\n$1exported: https://linear.app/thesis/document/intent-1 · 2026-09-29T00:00:00Z\n---\n\n# Intent: Weekly export of vault deposits\n',
 );
 
+// A spec in the git form that linear.mjs export writes.
+const GIT_SPEC = `---
+type: spec
+owner: Ana Nowak
+status: frozen
+relates: https://linear.app/thesis/document/intent-1
+exported: https://linear.app/thesis/document/spec-1 · 2026-09-30T00:00:00Z
+---
+
+# Spec: Weekly export of vault deposits
+
+## 1. Terms
+A report is the list of the deposits of one week.
+
+## 2. Scope
+The report is in scope. Withdrawals are out of scope.
+
+## 3. Requirements
+- R1: The finance team gets the report every Monday.
+
+## 4. How it works
+A script counts the deposits and writes the report.
+
+## 5. Worked example
+Ten deposits of 100 USD give a report with a total of 1000 USD.
+
+## 6. Roles and permissions
+The finance team reads the report.
+
+## 7. Deliverables
+The report script.
+
+## 8. Trade-offs
+A weekly report is late for a deposit on Tuesday. The low cost wins.
+
+## 9. Risks
+1. The script stops. Response: the analyst does the count.
+
+## 10. Open decisions
+None.
+
+## 11. Intent open problems, answered
+None.
+`;
+
 const PLAN = `---
 type: plan
-implements: spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8
+relates: spec.md, intent.md
 ---
 
 # Plan: Weekly export
@@ -475,6 +520,7 @@ describe('the documents of a push', () => {
     sh(root, 'init', '-q', '-b', 'main', work);
     sh(work, 'remote', 'add', 'origin', join(root, 'remote.git'));
     write(work, '.sdlc-kit/2026-09-probe/intent.md', GIT_INTENT);
+    write(work, '.sdlc-kit/2026-09-probe/spec.md', GIT_SPEC);
     write(work, '.sdlc-kit/2026-09-probe/plan.md', PLAN);
     sh(work, 'add', '-A');
     sh(work, 'commit', '-q', '-m', 'Add the stage');
@@ -483,8 +529,25 @@ describe('the documents of a push', () => {
       documents: [
         { name: '.sdlc-kit/2026-09-probe/intent.md', decision: 'allow' },
         { name: '.sdlc-kit/2026-09-probe/plan.md', decision: 'allow' },
+        { name: '.sdlc-kit/2026-09-probe/spec.md', decision: 'allow' },
       ],
     });
+  });
+
+  test('a push of a plan whose spec is only in the working tree is denied by the lint', () => {
+    const root = tempDir('sdlc-kit-repo-');
+    const work = join(root, 'work');
+    sh(root, 'init', '--bare', '-q', '-b', 'main', join(root, 'remote.git'));
+    sh(root, 'init', '-q', '-b', 'main', work);
+    sh(work, 'remote', 'add', 'origin', join(root, 'remote.git'));
+    write(work, '.sdlc-kit/2026-09-probe/intent.md', GIT_INTENT);
+    write(work, '.sdlc-kit/2026-09-probe/plan.md', PLAN);
+    sh(work, 'add', '-A');
+    sh(work, 'commit', '-q', '-m', 'Add the plan');
+    write(work, '.sdlc-kit/2026-09-probe/spec.md', GIT_SPEC);
+    const result = bash(work, 'git push origin main', 'pass');
+    assert.equal(result.decision, 'deny');
+    assert.match(result.reason, /\n\.sdlc-kit\/2026-09-probe\/plan\.md:3: structure-relates: the plan relates to spec\.md, but no spec\.md is next to it\n/);
   });
 });
 
@@ -665,8 +728,8 @@ describe('decide', () => {
 
   test('a save of a spec in the form that Linear stores is gated as a spec', () => {
     const stored =
-      '```yaml\ntype: spec\nowner: Łukasz Zimnoch\nstatus: in review\n' +
-      'implements: Intent https://linear.app/thesis-co/document/example-1234abcd\n```\n\n## 1. Terms\nOne term.\n';
+      '```yaml\ntype: spec\nowner: Łukasz Zimnoch\nstatus: review\n' +
+      'relates: https://linear.app/thesis-co/document/example-1234abcd\n```\n\n## 1. Terms\nOne term.\n';
     assert.match(save({ id: 'doc-2', content: stored }).reason, /^document-gate: the lint found these lines in doc-2:\ndoc-2:1: structure-heading-missing: the spec has no "## 2\. Scope" heading/);
   });
 
@@ -694,7 +757,7 @@ describe('decide', () => {
   });
 
   test('an update by id of a document in the old form denies and asks for the frontmatter', () => {
-    const old = '# Intent: Weekly export\nOwner: Ana Nowak · Status: in review\nLinear: pending\n\n## 1. Executive summary\n';
+    const old = '# Intent: Weekly export\nOwner: Ana Nowak · Status: review\nLinear: pending\n\n## 1. Executive summary\n';
     assert.equal(save({ id: 'doc-1', content: old }).reason, noFrontmatterReason('doc-1', 'intent'));
   });
 
@@ -751,7 +814,7 @@ describe('decide', () => {
 
   describe('a push', () => {
     const { root, work } = repository();
-    sh(work, 'rm', '-q', '.sdlc-kit/2026-09-probe/spec.md');
+    write(work, '.sdlc-kit/2026-09-probe/spec.md', GIT_SPEC);
     write(work, '.sdlc-kit/2026-09-probe/plan.md', PLAN.replace('lands in one phase.', 'lands in one phase — the first.'));
     sh(work, 'add', '-A');
     sh(work, 'commit', '-m', 'Add a plan');
@@ -776,6 +839,7 @@ describe('decide', () => {
       assert.deepEqual(result.documents, [
         { name: '.sdlc-kit/2026-09-probe/intent.md', decision: 'allow' },
         { name: '.sdlc-kit/2026-09-probe/plan.md', decision: 'allow' },
+        { name: '.sdlc-kit/2026-09-probe/spec.md', decision: 'allow' },
       ]);
     });
 

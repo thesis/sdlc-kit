@@ -34,27 +34,28 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
 4. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
    - Fill every section of the template.
    - Remove the guidance comments.
-   - Keep the frontmatter of the template at the top: the `yaml` code block with the fields `type`, `owner` and `status`. Linear stores the frontmatter in this form.
-   - Set `owner` to the name of the owner and `status` to `in review`.
-   - Do not add a `# Intent:` title line. Linear shows the title of the document above the content.
+   - Keep the frontmatter of the template at the top, between the `---` lines, with the fields `type`, `owner` and `status`.
+   - Set `owner` to the name of the owner and `status` to `review`.
+   - Write the name of the intent in the title line `# Intent: <name>`.
    - Give each open problem a number and an owner.
-5. Run the lint on the draft:
+5. Remove the title line and the blank line after it from the draft. Keep the title `Intent: <name>` for the save. Linear shows the title of the document above the content, so the content has no title line.
+6. Run the lint on the draft:
 
    ```
    node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs --type intent <draft>
    ```
 
    When the lint lists findings, follow the retry rule above.
-6. Read the draft again against the writing rules. Fix what you find. Then run the lint again.
-7. Create the Linear document with the `save_document` tool of the Linear MCP server:
-   - Use the title `Intent: <name>`.
+7. Read the draft again against the writing rules. Fix what you find. Then run the lint again.
+8. Create the Linear document with the `save_document` tool of the Linear MCP server:
+   - Use the title `Intent: <name>` of step 5.
    - Give the document exactly one parent: the team or the project that the owner named.
-   - Put the draft in `content` as markdown.
+   - Put the draft in `content` as markdown, with its frontmatter.
 
    The gate of the plugin runs on the save. When it denies the save, follow the retry rule above.
-8. Post a first comment on the document with the `save_comment` tool. Pass the `documentId` of the document. In the comment, list the open problems. Ask the named stakeholders for answers, with an @mention for each one. The comment follows the writing rules.
-9. Give the owner the URL of the document.
+9. Post a first comment on the document with the `save_comment` tool. Pass the `documentId` of the document. In the comment, list the open problems. Ask the named stakeholders for answers, with an @mention for each one. The comment follows the writing rules.
+10. Give the owner the URL of the document.
 
-## When the intent is agreed
+## When the intent is frozen
 
-The intent is agreed when the owner marks it agreed. At that point each open problem has an answer, or it goes to the spec as an open problem.
+The spec skill freezes the intent: it sets the `status` field to `frozen` when it creates the spec. It does so only when the status is `review` and every comment thread on the intent is resolved. At that point each open problem has an answer, or it goes to the spec as an open problem. Nobody sets the status by hand.

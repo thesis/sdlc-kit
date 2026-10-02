@@ -1,8 +1,10 @@
-```yaml
+---
 type: intent
 owner: <name>
-status: draft | in review | agreed | frozen
-```
+status: draft | review | frozen
+---
+
+# Intent: <name>
 
 ## 1. Executive summary
 <!-- At most five bullets, for decision makers. Say the problem, the outcome and the decision you ask for. -->
