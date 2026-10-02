@@ -29,7 +29,9 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
 5. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
    - Fill every section of the template.
    - Remove the guidance comments.
-   - Set the second line of the header to `Implements: Intent <intent URL> · Owner: <owner> · Status: in review`.
+   - Keep the frontmatter of the template at the top: the `yaml` code block with the fields `type`, `owner`, `status` and `implements`. Linear stores the frontmatter in this form.
+   - Set `owner` to the name of the owner, `status` to `in review` and `implements` to `Intent <intent URL>`.
+   - Do not add a `# Spec:` title line. Linear shows the title of the document above the content.
    - Give each open decision a number, an owner and a date.
    - In "11. Intent open problems, answered", give each open problem of the intent an answer or an owner.
    - Refer to a section of the intent in the cross-reference form of the writing rules.

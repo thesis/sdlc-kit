@@ -2,20 +2,23 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { stripAnchors } from './linear.mjs';
+import { readFrontmatter, stripAnchors } from './linear.mjs';
 
 export const STATUSES = ['draft', 'in review', 'agreed', 'frozen'];
+export const FORMS = ['linear', 'git'];
 
-// The top-level headings of each stage template, in order. Each list must
-// match skills/<type>/template.md.
+// The frontmatter fields and the top-level headings of each stage template,
+// in order. Each must match skills/<type>/template.md. `linear` marks a type
+// that also lives in Linear. `exported` marks a type whose git file takes
+// the `exported` field. `oldHeader` names the header lines of the form
+// before the frontmatter, for the finding that tells how to convert it.
 export const TEMPLATES = {
   intent: {
     prefix: 'Intent',
-    status: true,
-    implements: false,
-    owner: true,
+    fields: ['type', 'owner', 'status'],
     linear: true,
     exported: true,
+    oldHeader: ['Owner:', 'Status:', 'Linear:', 'Exported:'],
     sections: [
       { title: 'Executive summary', maxBullets: 5 },
       { title: 'Problem' },
@@ -28,11 +31,12 @@ export const TEMPLATES = {
   },
   spec: {
     prefix: 'Spec',
-    status: true,
-    implements: true,
-    owner: true,
-    linear: false,
+    fields: ['type', 'owner', 'status', 'implements'],
+    linear: true,
     exported: true,
+    oldHeader: ['Implements:', 'Owner:', 'Status:', 'Exported:'],
+    implementsForm: /^Intent https?:\/\/\S+$/,
+    implementsHint: 'Intent <intent URL>',
     sections: [
       { title: 'Terms' },
       { title: 'Scope' },
@@ -49,13 +53,13 @@ export const TEMPLATES = {
   },
   plan: {
     prefix: 'Plan',
-    status: false,
-    implements: true,
-    owner: false,
+    fields: ['type', 'implements'],
     linear: false,
     exported: false,
+    oldHeader: ['Implements:'],
     implementsForm: /^spec\.md @ [0-9a-f]{7,40} · intent\.md @ [0-9a-f]{7,40}$/,
     implementsHint: 'spec.md @ <sha> · intent.md @ <sha>',
+    implementsNote: ', each sha with 7 to 40 hex characters',
     sections: [
       { title: 'Summary' },
       { title: 'Work order', table: ['Phase', 'Depends on', 'Merge gate'] },
@@ -69,6 +73,11 @@ export const TEMPLATES = {
 };
 
 export const TYPES = [...Object.keys(TEMPLATES), 'prose'];
+
+/** The form that the lint checks when the caller names none: Linear for an intent or a spec, git for a plan. */
+export function defaultForm(type) {
+  return TEMPLATES[type]?.linear ? 'linear' : 'git';
+}
 
 // The number pattern for each form of item. An item is a list item, a
 // level-3 heading, or a table row after the separator row.
@@ -168,7 +177,8 @@ const NOT_VERBS_ING = new Set([
 const ING_TECHNICAL_NAMES = new Set(['operating system', 'logging level']);
 
 const MAX_SENTENCE_WORDS = 25;
-const EXPORTED_LINE = /^\s*Exported:[ \t]+https?:\/\/\S+[ \t]+·[ \t]+\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})[ \t]*$/;
+const EXPORTED_VALUE = /^https?:\/\/\S+[ \t]+·[ \t]+\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/;
+const PLACEHOLDER = /<[a-z][a-z -]*>/gi;
 
 const FENCE = /^\s*(`{3,}|~{3,})/;
 const HEADING = /^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
@@ -218,16 +228,17 @@ function maskLinks(s) {
  * outside code into blocks: one block per paragraph or list item, and one
  * block per heading or table row.
  */
-export function parse(text, { honorDisable = false } = {}) {
+export function parse(text, { honorDisable = false, stage = false } = {}) {
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   const info = lines.map(() => ({ kind: 'text', disabled: false, comment: false }));
+  // A stage document may open its frontmatter after blank lines and as a
+  // ```yaml fence. Other markdown takes only a "---" block on line 1.
+  const frontmatter = readFrontmatter(text);
+  const counts = frontmatter && frontmatter.end > 0 && (stage || (frontmatter.form === 'dashes' && frontmatter.start === 0));
   let start = 0;
-  if (lines[0] === '---') {
-    const end = lines.findIndex((l, i) => i > 0 && (l === '---' || l === '...'));
-    if (end > 0) {
-      for (let i = 0; i <= end; i++) info[i].kind = 'frontmatter';
-      start = end + 1;
-    }
+  if (counts) {
+    for (let i = 0; i <= frontmatter.end; i++) info[i].kind = i < frontmatter.start ? 'blank' : 'frontmatter';
+    start = frontmatter.end + 1;
   }
   let fence = null;
   let disabled = false;
@@ -326,7 +337,7 @@ export function parse(text, { honorDisable = false } = {}) {
     block.text = block.lines.map((l) => l.text).join('\n');
     block.lineAt = lineLocator(block);
   }
-  return { lines, info, blocks };
+  return { lines, info, blocks, frontmatter: stage ? frontmatter : null };
 }
 
 function lineLocator(block) {
@@ -492,7 +503,69 @@ function checkCrossReferences(block, codeMasked, context, add) {
   }
 }
 
-function checkStructure(doc, type, add) {
+function listWords(words) {
+  return words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words[words.length - 1]}`;
+}
+
+function missingFrontmatter(type, form) {
+  const template = TEMPLATES[type];
+  const fields = listWords(template.fields);
+  const start = form === 'git'
+    ? `the file has no frontmatter; start it with a "---" block of the fields ${fields}, above the "# ${template.prefix}: <name>" line`
+    : `the document has no frontmatter; start it with a \`\`\`yaml block of the fields ${fields}`;
+  const lines = listWords(template.oldHeader.map((l) => `"${l}"`));
+  const title = form === 'git' ? '' : `, and remove the "# ${template.prefix}:" line`;
+  return `${start}. To convert a document of the old form, move the values of its ${lines} lines into these fields${title}`;
+}
+
+// Checks the frontmatter fields of a stage document. The `type` field must
+// name the type of the lint. The `exported` field belongs only to the git
+// file of a type that Linear exports, and there it is required.
+function checkFields(frontmatter, type, form, add) {
+  const template = TEMPLATES[type];
+  const { fields } = frontmatter;
+  const top = frontmatter.start + 1;
+  for (const [key, field] of Object.entries(fields)) {
+    if (key !== 'exported' && !template.fields.includes(key)) {
+      add(field.index + 1, 'structure-frontmatter', `the ${type} takes no "${key}" field; its fields are ${listWords(template.fields)}`);
+    }
+    for (const m of field.value.matchAll(PLACEHOLDER)) add(field.index + 1, 'structure-placeholder', `fill in the placeholder ${m[0]}`);
+  }
+  const required = (key, rule) => {
+    const field = fields[key];
+    if (!field) add(top, rule, `the frontmatter has no "${key}" field`);
+    else if (!field.value) add(field.index + 1, rule, `the "${key}" field is empty`);
+    else return field;
+    return null;
+  };
+  const typeField = required('type', 'structure-frontmatter');
+  if (typeField && typeField.value !== type) add(typeField.index + 1, 'structure-frontmatter', `the "type" field must be "${type}"`);
+  if (template.fields.includes('owner')) required('owner', 'structure-owner');
+  if (template.fields.includes('status')) {
+    const status = required('status', 'structure-status');
+    if (status && !STATUSES.includes(status.value.toLowerCase())) {
+      add(status.index + 1, 'structure-status', `status "${status.value}" is not one of: ${STATUSES.join(', ')}`);
+    }
+  }
+  if (template.fields.includes('implements')) {
+    const field = required('implements', 'structure-implements');
+    if (field && !new RegExp(PLACEHOLDER.source, 'i').test(field.value) && !template.implementsForm.test(field.value)) {
+      add(field.index + 1, 'structure-implements', `write the field as "implements: ${template.implementsHint}"${template.implementsNote ?? ''}`);
+    }
+  }
+  const exported = fields.exported;
+  if (!template.exported) {
+    if (exported) add(exported.index + 1, 'structure-exported', `the ${type} takes no "exported" field`);
+  } else if (form === 'linear') {
+    if (exported) add(exported.index + 1, 'structure-exported', 'a Linear document takes no "exported" field; linear.mjs export adds it to the git file');
+  } else if (!exported) {
+    add(top, 'structure-exported', 'the git file has no "exported" field; write the file with linear.mjs export');
+  } else if (!EXPORTED_VALUE.test(exported.value)) {
+    add(exported.index + 1, 'structure-exported', 'write the field as "exported: <document URL> · <ISO time>"');
+  }
+}
+
+function checkStructure(doc, type, form, add) {
   const template = TEMPLATES[type];
   const headingLines = [];
   doc.lines.forEach((line, i) => {
@@ -501,66 +574,35 @@ function checkStructure(doc, type, add) {
     headingLines.push({ index: i, level: hashes.length, text: text.trim() });
   });
 
+  const { frontmatter } = doc;
   const first = doc.lines.findIndex((l, i) => doc.info[i].kind !== 'frontmatter' && l.trim() !== '');
-  const title = headingLines[0];
-  const titleRe = new RegExp(`^${template.prefix}:\\s+(\\S.*)$`);
-  if (!title || title.index !== first || title.level !== 1 || !titleRe.test(title.text)) {
-    add(first + 1, 'structure-title', `the first line must be "# ${template.prefix}: <name>"`);
+  if (!frontmatter) {
+    add(Math.max(first, 0) + 1, 'structure-frontmatter', missingFrontmatter(type, form));
+  } else {
+    for (const e of frontmatter.errors) add(e.index + 1, 'structure-frontmatter', e.message);
+    if (form === 'git' && (frontmatter.form !== 'dashes' || frontmatter.start !== 0)) {
+      add(frontmatter.start + 1, 'structure-frontmatter', 'a git file starts on line 1 with the frontmatter between two "---" lines');
+    }
+    if (frontmatter.end > 0) checkFields(frontmatter, type, form, add);
+  }
+
+  // Linear shows the title of the document above the content, so a title
+  // line in the content shows the title twice. Only the git file has one.
+  if (form === 'linear') {
+    for (const h of headingLines.filter((h) => h.level === 1)) {
+      add(h.index + 1, 'structure-title', 'a Linear document has no "# " title line, because Linear shows the document title; remove the line');
+    }
+  } else {
+    const title = headingLines[0];
+    const titleRe = new RegExp(`^${template.prefix}:\\s+(\\S.*)$`);
+    if (!title || title.index !== first || title.level !== 1 || !titleRe.test(title.text)) {
+      add(Math.max(first, 0) + 1, 'structure-title', `the first line after the frontmatter must be "# ${template.prefix}: <name>"`);
+    } else {
+      for (const m of title.text.matchAll(PLACEHOLDER)) add(title.index + 1, 'structure-placeholder', `fill in the placeholder ${m[0]}`);
+    }
   }
 
   const h2 = headingLines.filter((h) => h.level === 2);
-  const headerEnd = h2.length ? h2[0].index : doc.lines.length;
-  const headerStart = title && title.index === first ? title.index : first;
-  const header = [];
-  for (let i = headerStart; i < headerEnd; i++) {
-    if (doc.info[i].kind !== 'fence') header.push({ no: i + 1, text: doc.lines[i] });
-  }
-  for (const { no, text } of header) {
-    for (const m of text.matchAll(/<[a-z][a-z -]*>/gi)) {
-      add(no, 'structure-placeholder', `fill in the placeholder ${m[0]}`);
-    }
-  }
-  if (template.status) {
-    const found = header.map((h) => ({ ...h, m: h.text.match(/(?:^|[\s·|])Status:[ \t]*([^·\n]*)/) })).find((h) => h.m);
-    if (!found) {
-      add(headerStart + 1, 'structure-status', 'the header has no "Status:" field');
-    } else {
-      const value = found.m[1].trim().toLowerCase();
-      if (!STATUSES.includes(value)) {
-        add(found.no, 'structure-status', `status "${found.m[1].trim()}" is not one of: ${STATUSES.join(', ')}`);
-      }
-    }
-  }
-  if (template.implements) {
-    const found = header.map((h) => ({ ...h, m: h.text.match(/(?:^|[\s·|])Implements:[ \t]*([^\n]*)/) })).find((h) => h.m);
-    if (!found) add(headerStart + 1, 'structure-implements', 'the header has no "Implements:" field');
-    else if (!found.m[1].trim()) add(found.no, 'structure-implements', 'the "Implements:" field is empty');
-    else if (template.implementsForm && !/<[a-z][a-z -]*>/i.test(found.m[1]) && !template.implementsForm.test(found.m[1].trim())) {
-      add(found.no, 'structure-implements', `write the field as "Implements: ${template.implementsHint}", each sha with 7 to 40 hex characters`);
-    }
-  }
-  if (template.owner) {
-    const found = header.map((h) => ({ ...h, m: h.text.match(/(?:^|[\s·|])Owner:[ \t]*([^·\n]*)/) })).find((h) => h.m);
-    if (!found) add(headerStart + 1, 'structure-owner', 'the header has no "Owner:" field');
-    else if (!found.m[1].trim()) add(found.no, 'structure-owner', 'the "Owner:" field is empty');
-  }
-  if (template.linear) {
-    const found = header.map((h) => ({ ...h, m: h.text.match(/^\s*Linear:[ \t]*(.*?)\s*$/) })).find((h) => h.m);
-    const value = found?.m[1] ?? '';
-    if (!found) {
-      add(headerStart + 1, 'structure-linear', 'the header has no "Linear:" line');
-    } else if (!/^<[^>]*>$/.test(value) && value !== 'pending' && !/^https?:\/\/\S+$/.test(value)) {
-      add(found.no, 'structure-linear', 'the "Linear:" line must hold the document URL, or "pending" before the first save');
-    }
-  }
-
-  // Only a file exported from Linear has this line, so it is optional.
-  const exported = header.find((h) => /^\s*Exported:/.test(h.text));
-  if (exported && !template.exported) {
-    add(exported.no, 'structure-exported', `the ${type} header does not take an "Exported:" line`);
-  } else if (exported && !EXPORTED_LINE.test(exported.text)) {
-    add(exported.no, 'structure-exported', 'write the line as "Exported: <document URL> · <ISO time>"');
-  }
 
   const expected = template.sections.map((s) => s.title.toLowerCase());
   const seen = new Map();
@@ -737,17 +779,24 @@ function sectionItems(body) {
   return items;
 }
 
-/** Returns the findings for one document as {path, line, rule, message}. */
-export function lintText(text, { type, path = '<input>' } = {}) {
+/**
+ * Returns the findings for one document as {path, line, rule, message}.
+ * `form` is the form of a stage document: "linear" for the content of a
+ * Linear document, "git" for a file under .sdlc-kit/. It defaults to
+ * defaultForm(type), and the prose type ignores it.
+ */
+export function lintText(text, { type, form = defaultForm(type), path = '<input>' } = {}) {
   if (!TYPES.includes(type)) throw new Error(`unknown type "${type}"`);
+  const formError = checkForm(type, form);
+  if (formError) throw new Error(formError);
   const findings = [];
   const add = (line, rule, message) => findings.push({ path, line, rule, message });
   // A document that the Linear MCP returned wraps commented text in anchors.
   // They are not part of the text, so the lint removes them before any check.
-  const doc = parse(stripAnchors(text), { honorDisable: type === 'prose' });
+  const doc = parse(stripAnchors(text), { honorDisable: type === 'prose', stage: type !== 'prose' });
   const context = { path: path === '<input>' ? null : path, headings: new Map() };
 
-  if (type !== 'prose') checkStructure(doc, type, add);
+  if (type !== 'prose') checkStructure(doc, type, form, add);
   checkEmDash(doc, add);
   for (const block of doc.blocks) {
     const codeMasked = maskCode(maskHtmlComments(block.text));
@@ -761,11 +810,19 @@ export function lintText(text, { type, path = '<input>' } = {}) {
   return findings;
 }
 
-const USAGE = `usage: node lint.mjs --type ${TYPES.join('|')} [--json] <file>...`;
+function checkForm(type, form) {
+  if (type === 'prose') return null;
+  if (!FORMS.includes(form)) return `unknown form "${form}"`;
+  if (form === 'linear' && !TEMPLATES[type].linear) return `the ${type} has no Linear form`;
+  return null;
+}
+
+const USAGE = `usage: node lint.mjs --type ${TYPES.join('|')} [--form ${FORMS.join('|')}] [--json] <file>...`;
 
 /** Runs the CLI and returns the exit code: 0 clean, 1 findings, 2 usage error. */
 export function main(argv, out = process.stdout, err = process.stderr) {
   let type = null;
+  let form;
   let json = false;
   const files = [];
   for (let i = 0; i < argv.length; i++) {
@@ -773,6 +830,8 @@ export function main(argv, out = process.stdout, err = process.stderr) {
     if (arg === '--json') json = true;
     else if (arg === '--type') type = argv[++i];
     else if (arg.startsWith('--type=')) type = arg.slice('--type='.length);
+    else if (arg === '--form') form = argv[++i];
+    else if (arg.startsWith('--form=')) form = arg.slice('--form='.length);
     else if (arg === '-h' || arg === '--help') {
       out.write(`${USAGE}\n`);
       return 0;
@@ -785,6 +844,12 @@ export function main(argv, out = process.stdout, err = process.stderr) {
     err.write(`${USAGE}\n`);
     return 2;
   }
+  form ??= defaultForm(type);
+  const formError = checkForm(type, form);
+  if (formError) {
+    err.write(`${formError}\n${USAGE}\n`);
+    return 2;
+  }
   const findings = [];
   for (const file of files) {
     let text;
@@ -794,7 +859,7 @@ export function main(argv, out = process.stdout, err = process.stderr) {
       err.write(`${file}: cannot read: ${e.message}\n`);
       return 2;
     }
-    findings.push(...lintText(text, { type, path: file }));
+    findings.push(...lintText(text, { type, form, path: file }));
   }
   if (json) out.write(`${JSON.stringify(findings, null, 2)}\n`);
   else for (const f of findings) out.write(`${f.path}:${f.line}: ${f.rule}: ${f.message}\n`);

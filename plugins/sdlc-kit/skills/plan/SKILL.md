@@ -11,7 +11,7 @@ The plan says how agents build what the spec describes. Its first readers are th
 
 The output is one branch and one draft pull request in the target repository, the repository where the feature lands. The pull request adds the stage directory `.sdlc-kit/YYYY-MM-<slug>/` with `intent.md`, `spec.md` and `plan.md`. The output never goes to thesis/sdlc-kit.
 
-Run the skill when the owner marked the spec agreed in Linear. The skill stops when the working directory is not a git checkout with a GitHub remote. It also stops when the `Status:` line of the spec is not `agreed`.
+Run the skill when the owner marked the spec agreed in Linear. The skill stops when the working directory is not a git checkout with a GitHub remote. It also stops when the `status` field of the spec is not `agreed`.
 
 The input is the Linear URL of the spec: $ARGUMENTS
 
@@ -34,8 +34,8 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
 1. Check that the working directory is a git checkout with a remote on GitHub. Stop when it is not.
 2. Read the spec with the `get_document` tool of the Linear MCP server.
 3. Read every comment on the spec with the `list_comments` tool. Pass the `documentId` of the spec. When `hasNextPage` is true, read the next pages too.
-4. Stop when the `Status:` line of the spec is not `agreed`. Tell the owner the status that you found.
-5. Follow the `Implements: Intent <url>` line of the spec to the intent. Read the intent and its comments in the same way.
+4. Stop when the `status` field in the frontmatter of the spec is not `agreed`. Tell the owner the status that you found.
+5. Follow the URL in the `implements` field of the spec to the intent. Read the intent and its comments in the same way.
 6. Write the content of each document to a scratch file outside the repository, with no edits. Write each comment list to a scratch file in the same way.
 7. Group the comments of each document into threads:
 
@@ -49,15 +49,15 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
 11. Propose the stage directory name `.sdlc-kit/YYYY-MM-<slug>/` from the current month and the title of the spec. Wait for the owner to accept or change it.
 12. Run `git fetch`.
 13. Create the branch from the default branch of the remote. The name follows the rules of the target repository.
-14. In the content of each document, set the `Status:` line to `Status: frozen`. Change nothing else.
+14. In the content of each document, set the `status` field of the frontmatter to `frozen`. Change nothing else.
 15. Save each document with the `save_document` tool: the `id` of the document and the full content in `content`. The gate of the plugin runs on each save. When it denies a save, follow the retry rule above.
-16. Export each document into the stage directory, the intent to `intent.md` and the spec to `spec.md`:
+16. Export each document into the stage directory, the intent to `intent.md` and the spec to `spec.md`. Pass the title of the Linear document as `--title`. The export writes the frontmatter between `---` lines with the `exported` field, then the title line `# Intent: <name>` or `# Spec: <name>`:
 
     ```
-    node ${CLAUDE_PLUGIN_ROOT}/scripts/linear.mjs export --url <document URL> <content.md>
+    node ${CLAUDE_PLUGIN_ROOT}/scripts/linear.mjs export --url <document URL> --title <document title> <content.md>
     ```
 
-17. Run the lint on both files, with `--type intent` and `--type spec`. Do not edit the agreed text. When the lint lists findings, stop. Give the owner the findings and the path of each file. Then wait for the owner to decide.
+17. Run the lint on both files, with `--form git` and with `--type intent` and `--type spec`. Do not edit the agreed text. When the lint lists findings, stop. Give the owner the findings and the path of each file. Then wait for the owner to decide.
 18. Commit `intent.md` and `spec.md` as the first commit of the branch.
 19. Push the branch with `git push`. The gate runs on the push. When it denies the push, follow the retry rule above.
 20. Open the pull request as a draft with `gh pr create --draft`.
@@ -73,7 +73,8 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
 25. Write `plan.md` in the stage directory, in the template. Use these steps:
     - Fill every section of the template.
     - Remove the guidance comments.
-    - Set the two shas of the `Implements:` line of the template to the sha of the export commit.
+    - Keep the frontmatter of the template at the top, between `---` lines, above the `# Plan:` title line.
+    - Set the two shas of the `implements` field to the sha of the export commit.
     - Keep the heading "7. What changed". In the first plan, the section holds no entry.
     - Map every requirement of the spec to at least one file change and one test.
     - Give every phase a merge gate that a script can check.

@@ -34,8 +34,9 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
 4. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
    - Fill every section of the template.
    - Remove the guidance comments.
-   - Set the second line of the header to `Owner: <owner> · Status: in review`.
-   - Set the third line of the header to `Linear: pending`. The lint accepts `pending` until the document has a URL.
+   - Keep the frontmatter of the template at the top: the `yaml` code block with the fields `type`, `owner` and `status`. Linear stores the frontmatter in this form.
+   - Set `owner` to the name of the owner and `status` to `in review`.
+   - Do not add a `# Intent:` title line. Linear shows the title of the document above the content.
    - Give each open problem a number and an owner.
 5. Run the lint on the draft:
 
@@ -51,9 +52,8 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
    - Put the draft in `content` as markdown.
 
    The gate of the plugin runs on the save. When it denies the save, follow the retry rule above.
-8. Replace `pending` on the `Linear:` line with the URL of the new document. Run the lint on the changed draft. Then save the document again with `save_document`, the `id` of the document and the full draft in `content`. The gate runs on this save too.
-9. Post a first comment on the document with the `save_comment` tool. Pass the `documentId` of the document. In the comment, list the open problems. Ask the named stakeholders for answers, with an @mention for each one. The comment follows the writing rules.
-10. Give the owner the URL of the document.
+8. Post a first comment on the document with the `save_comment` tool. Pass the `documentId` of the document. In the comment, list the open problems. Ask the named stakeholders for answers, with an @mention for each one. The comment follows the writing rules.
+9. Give the owner the URL of the document.
 
 ## When the intent is agreed
 

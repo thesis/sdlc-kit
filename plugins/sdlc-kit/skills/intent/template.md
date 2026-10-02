@@ -1,6 +1,8 @@
-# Intent: <name>
-Owner: <name> · Status: draft | in review | agreed | frozen
-Linear: <url>
+```yaml
+type: intent
+owner: <name>
+status: draft | in review | agreed | frozen
+```
 
 ## 1. Executive summary
 <!-- At most five bullets, for decision makers. Say the problem, the outcome and the decision you ask for. -->

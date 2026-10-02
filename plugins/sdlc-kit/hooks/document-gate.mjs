@@ -26,12 +26,17 @@ if (isMain && process.env.SDLC_KIT_GATE) process.exit(0);
 // lint loads here and a load error denies each call.
 let lintText;
 let stripAnchors;
+let frontmatterType;
 let lintLoadError = null;
 try {
   ({ lintText } = await import('../scripts/lint.mjs'));
-  ({ stripAnchors } = await import('../scripts/linear.mjs'));
+  ({ stripAnchors, frontmatterType } = await import('../scripts/linear.mjs'));
 } catch (e) {
   lintLoadError = e;
+}
+
+function requireLint() {
+  if (lintLoadError) throw new Error(`the lint did not load: ${lintLoadError.message}`);
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -68,26 +73,48 @@ export const VERDICT_SCHEMA = {
   additionalProperties: false,
 };
 
-// The title types of a Linear save. The plan lives only in git, so a Linear
-// document titled "Plan:" is not a stage document.
-const TITLE_TYPES = [
-  ['Intent', 'intent'],
-  ['Spec', 'spec'],
-];
+// The stage types that live in Linear. The plan lives only in git, so a
+// Linear document of the type `plan` is not a stage document.
+const LINEAR_TYPES = ['intent', 'spec'];
+const STAGE_PREFIX = /^(intent|spec):/i;
 const FILE_TYPES = { 'intent.md': 'intent', 'spec.md': 'spec', 'plan.md': 'plan' };
 
 /**
  * Returns the stage type of a document. With `path`, the file name decides,
- * and every other file is `prose`. Without it, the title or the first line of
- * the content decides between `intent` and `spec`, and the result is null for
- * every other document.
+ * and every other file is `prose`. Without it, the `type` field of the
+ * frontmatter of `content` decides between `intent` and `spec`, and the
+ * result is null for every other document.
  */
-export function documentType({ title, content, path } = {}) {
+export function documentType({ content, path } = {}) {
   if (path) return FILE_TYPES[basename(path)] ?? 'prose';
-  const fromTitle = (text) => TITLE_TYPES.find(([prefix]) => new RegExp(`^${prefix}:`, 'i').test(text ?? ''))?.[1];
+  requireLint();
+  const type = frontmatterType(stripBom(content ?? ''));
+  return LINEAR_TYPES.includes(type) ? type : null;
+}
+
+const article = (type) => (type === 'intent' ? 'an intent' : `a ${type}`);
+
+// The stage type that the title of a save names, or that the first line of
+// content in the form before the frontmatter names, such as "# Intent: X".
+function namedTypes({ title, content }) {
+  const fromTitle = stripBom(title ?? '').trim().match(STAGE_PREFIX)?.[1].toLowerCase() ?? null;
   const firstLine = stripBom(content ?? '').split(/\r?\n/).find((l) => l.trim() !== '') ?? '';
-  const heading = firstLine.match(/^\s{0,3}#[ \t]+(.*)$/);
-  return fromTitle(stripBom(title ?? '').trim()) ?? (heading ? fromTitle(heading[1].trim()) : undefined) ?? null;
+  const fromHeading = firstLine.match(/^\s{0,3}#[ \t]+(intent|spec):/i)?.[1].toLowerCase() ?? null;
+  return { fromTitle, fromHeading };
+}
+
+export function noFrontmatterReason(name, type) {
+  return (
+    `document-gate: ${name} is ${article(type)}, but its content has no frontmatter. ` +
+    `Start the content with a \`\`\`yaml block that holds "type: ${type}" and the other fields of the ${type} template. Then repeat the call.`
+  );
+}
+
+export function typeMismatchReason(title, titleType, type) {
+  return (
+    `document-gate: the title "${title}" names ${article(titleType)}, but the "type" field of the frontmatter is "${type}". ` +
+    'Make the title and the "type" field agree. Then repeat the call.'
+  );
 }
 
 function stripBom(text) {
@@ -603,13 +630,14 @@ const REPEAT_JUDGE = 'Fix each finding. Then repeat the call.';
  * A lint finding denies with no judge run. A judge verdict with a finding, or with a FAIL, denies.
  * Every error of the judge run denies too. The judge run gets the time left
  * until `deadline`, and with less than `floorMs` left the gate denies with no
- * judge run. Returns the decision, the reason of a denial, the stage that
- * decided and the cost of the judge run.
+ * judge run. `form` is the form of the lint: "linear" for a save, "git"
+ * for a file of a push. Returns the decision, the reason of a denial, the
+ * stage that decided and the cost of the judge run.
  */
-export function gate(text, { type, name, env = process.env, deadline = Date.now() + GATE_BUDGET_MS, floorMs = JUDGE_FLOOR_MS } = {}) {
-  if (lintLoadError) throw new Error(`the lint did not load: ${lintLoadError.message}`);
+export function gate(text, { type, form, name, env = process.env, deadline = Date.now() + GATE_BUDGET_MS, floorMs = JUDGE_FLOOR_MS } = {}) {
+  requireLint();
   text = stripAnchors(stripBom(text));
-  const findings = lintText(text, { type, path: name });
+  const findings = lintText(text, { type, form, path: name });
   if (findings.length) {
     const lines = findings.map((f) => `${f.path}:${f.line}: ${f.rule}: ${f.message}`);
     return { decision: 'deny', stage: 'lint', reason: `document-gate: the lint found these lines in ${name}:\n${lines.join('\n')}\n${REPEAT_SAVE}` };
@@ -657,10 +685,16 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
       return { decision: 'deny', reason: PATCH_REASON, documents: [{ name: toolInput.title ?? toolInput.id, decision: 'deny' }] };
     }
     if (typeof toolInput.content !== 'string') return { decision: 'allow', documents: [] };
-    const type = documentType({ title: toolInput.title, content: toolInput.content });
     const name = toolInput.title ?? toolInput.id ?? 'the document';
+    const denied = (reason) => ({ decision: 'deny', reason, documents: [{ name, decision: 'deny' }] });
+    requireLint();
+    const declared = frontmatterType(stripBom(toolInput.content));
+    const { fromTitle, fromHeading } = namedTypes(toolInput);
+    if (!declared && (fromTitle || fromHeading)) return denied(noFrontmatterReason(name, fromTitle ?? fromHeading));
+    if (declared && fromTitle && declared !== fromTitle) return denied(typeMismatchReason(toolInput.title.trim(), fromTitle, declared));
+    const type = documentType({ content: toolInput.content });
     if (type === null) return { decision: 'allow', documents: [{ name, decision: 'allow' }] };
-    const result = gate(toolInput.content, { type, name, ...limits });
+    const result = gate(toolInput.content, { type, form: 'linear', name, ...limits });
     return { ...result, documents: [{ name, decision: result.decision }] };
   }
   if (tool === 'Bash') {
@@ -675,7 +709,7 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
       const pushed = pushedDocuments(push);
       if (pushed === null) continue;
       for (const doc of pushed) {
-        const result = gate(doc.text(), { type: documentType({ path: doc.path }), name: doc.path, ...limits });
+        const result = gate(doc.text(), { type: documentType({ path: doc.path }), form: 'git', name: doc.path, ...limits });
         documents.push({ name: doc.path, decision: result.decision });
         if (result.decision === 'deny') return { ...result, documents };
       }
