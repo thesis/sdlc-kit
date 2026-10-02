@@ -3,12 +3,12 @@
   "owner": {
     "name": "Thesis"
   },
-  "description": "Claude Code plugins for the AI SDLC at Thesis.",
+  "description": "Claude Code plugins for the AI-native SDLC at Thesis.",
   "plugins": [
     {
       "name": "sdlc-kit",
       "source": "./plugins/sdlc-kit",
-      "description": "Skills, templates and writing rules for the intent, the spec and the plan. A writing judge and a gate check each save and push of a stage document. A steward skill works the comment threads on a document, and a feedback skill files a report about the plugin in Linear."
+      "description": "Guides each change through the AI-native SDLC, so AI does the routine work and people make the decisions."
     }
   ]
 }
