@@ -16,8 +16,8 @@
 
 ## Context
 - Plugin version: <version>
-- Surface: Claude Code | Cowork
-- Claude Code version: <the output of claude --version in Claude Code, or None in Cowork>
+- Surface: Claude Code | Claude App, Chat | Claude App, Cowork
+- Claude Code version: <the output of claude --version in Claude Code, or None in the Claude App>
 - Active skill: <the skill, or None>
 - Target repository: <owner/name, or None>
 
@@ -34,8 +34,8 @@
 
 ## Context
 - Plugin version: <version>
-- Surface: Claude Code | Cowork
-- Claude Code version: <the output of claude --version in Claude Code, or None in Cowork>
+- Surface: Claude Code | Claude App, Chat | Claude App, Cowork
+- Claude Code version: <the output of claude --version in Claude Code, or None in the Claude App>
 - Active skill: <the skill, or None>
 - Target repository: <owner/name, or None>
 
