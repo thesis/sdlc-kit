@@ -26,13 +26,12 @@ if (isMain && process.env.SDLC_KIT_GATE) process.exit(0);
 // lint loads here and a load error denies each call.
 let lintText;
 let isUrlList;
-let STATUSES;
 let stripAnchors;
 let frontmatterType;
 let readFrontmatter;
 let lintLoadError = null;
 try {
-  ({ lintText, isUrlList, STATUSES } = await import('../scripts/lint.mjs'));
+  ({ lintText, isUrlList } = await import('../scripts/lint.mjs'));
   ({ stripAnchors, frontmatterType, readFrontmatter } = await import('../scripts/linear.mjs'));
 } catch (e) {
   lintLoadError = e;
@@ -680,13 +679,13 @@ export function missingDirReason(dir) {
 
 export const PATCH_REASON =
   'document-gate: a patch save may only change frontmatter fields. Each op is a "replace" of one "key: value" line with a line of the same key, ' +
-  'or an "insert_before" or "insert_after" of one "key: value" line at a "key: value" line. The key is type, owner, status or relates. ' +
-  `The type is intent or spec, the status is one of ${['draft', 'review', 'approved'].join(', ')}, and relates is a comma list of URLs. ` +
+  'or an "insert_before" or "insert_after" of one "key: value" line at a "key: value" line. The key is type, owner or relates. ' +
+  'The type is intent or spec, and relates is a comma list of URLs. ' +
   'For any other edit, repeat the save with the full document in the content field and no patch field.';
 
 // The fields of the Linear frontmatter, which a frontmatter patch may write.
 // `exported` is a field of the git file only.
-const PATCH_KEYS = ['type', 'owner', 'status', 'relates'];
+const PATCH_KEYS = ['type', 'owner', 'relates'];
 
 // The key and the value of `text` when it is one frontmatter line, else null.
 function fieldLine(text) {
@@ -698,7 +697,6 @@ function fieldLine(text) {
 function validNewField(line) {
   if (!line || !PATCH_KEYS.includes(line.key) || !line.value) return false;
   if (line.key === 'type') return LINEAR_TYPES.includes(line.value);
-  if (line.key === 'status') return STATUSES.includes(line.value.toLowerCase());
   if (line.key === 'relates') return isUrlList(line.value);
   return true;
 }

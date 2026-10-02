@@ -52,7 +52,6 @@ function fillTemplate(type) {
     .split('\n')
     .map((line) => {
       if (line.startsWith('owner:')) return 'owner: Ana Nowak';
-      if (line.startsWith('status:')) return 'status: review';
       if (line.startsWith('relates:')) return type === 'spec' ? `relates: ${INTENT_URL}` : null;
       return line;
     })
@@ -214,12 +213,12 @@ describe('templates', () => {
       assert.equal(r.status, 0);
     });
 
-    test(`an unfilled ${type} template in the Linear form fails only on placeholders, status and empty sections`, () => {
+    test(`an unfilled ${type} template in the Linear form fails only on placeholders and empty sections`, () => {
       const found = new Set(rules(linearDraft(templateText(type)), type));
       assert.ok(found.has('structure-empty-section'));
       for (const rule of found) {
         assert.ok(
-          ['structure-placeholder', 'structure-status', 'structure-empty-section'].includes(rule),
+          ['structure-placeholder', 'structure-empty-section'].includes(rule),
           `unexpected rule ${rule}`,
         );
       }
@@ -407,7 +406,7 @@ describe('frontmatter', () => {
   const spec = fillTemplate('spec');
   const body = (text) => text.slice(text.indexOf('\n## 1.'));
   const fence = (fields) => `\`\`\`yaml\n${fields.join('\n')}\n\`\`\`\n`;
-  const INTENT_FIELDS = ['type: intent', 'owner: Ana Nowak', 'status: review'];
+  const INTENT_FIELDS = ['type: intent', 'owner: Ana Nowak'];
   const withFields = (fields) => `${fence(fields)}${body(intent)}`;
   const gitIntent = exportTemplate('intent');
   const gitSpec = exportTemplate('spec');
@@ -415,7 +414,7 @@ describe('frontmatter', () => {
   describe('in the Linear form', () => {
     test('the form that Linear stores for a saved "---" block passes', () => {
       const stored =
-        '```yaml\ntype: spec\nowner: Łukasz Zimnoch\nstatus: review\n' +
+        '```yaml\ntype: spec\nowner: Łukasz Zimnoch\n' +
         'relates: https://linear.app/thesis-co/document/example-1234abcd\n```\n';
       assert.deepEqual(rules(`${stored}${body(spec)}`, 'spec'), []);
     });
@@ -430,7 +429,7 @@ describe('frontmatter', () => {
 
     test('a title line fails, because Linear shows the title of the document', () => {
       const found = lintText(intent.replace('---\n\n', '---\n\n# Intent: Vault on Robinhood\n\n'), { type: 'intent' });
-      assert.deepEqual(found.map((f) => [f.line, f.rule]), [[7, 'structure-title']]);
+      assert.deepEqual(found.map((f) => [f.line, f.rule]), [[6, 'structure-title']]);
     });
 
     test('an exported field fails', () => {
@@ -439,11 +438,11 @@ describe('frontmatter', () => {
     });
 
     test('a document of the old form fails with the steps to convert it', () => {
-      const old = `# Intent: Vault on Robinhood\nOwner: Ana Nowak · Status: review\nLinear: ${INTENT_URL}\n${body(intent)}`;
+      const old = `# Intent: Vault on Robinhood\nOwner: Ana Nowak\nLinear: ${INTENT_URL}\n${body(intent)}`;
       const found = lintText(old, { type: 'intent' });
       assert.deepEqual(found.map((f) => [f.line, f.rule]), [[1, 'structure-frontmatter'], [1, 'structure-title']]);
-      assert.match(found[0].message, /^the document has no frontmatter; start it with a "---" block of the fields type, owner and status\./);
-      assert.match(found[0].message, /move the values of its "Owner:", "Status:", "Linear:" and "Exported:" lines into these fields, and remove the "# Intent:" line$/);
+      assert.match(found[0].message, /^the document has no frontmatter; start it with a "---" block of the fields type and owner\./);
+      assert.match(found[0].message, /move the values of its "Owner:", "Linear:" and "Exported:" lines into these fields, and remove the "# Intent:" line$/);
     });
   });
 
@@ -502,21 +501,16 @@ describe('frontmatter', () => {
       ['no type field', INTENT_FIELDS.slice(1), 'structure-frontmatter'],
       ['the type of another document', ['type: spec', ...INTENT_FIELDS.slice(1)], 'structure-frontmatter'],
       ['a field that the type does not take', [...INTENT_FIELDS, `linear: ${INTENT_URL}`], 'structure-frontmatter'],
-      ['no owner field', ['type: intent', 'status: review'], 'structure-owner'],
-      ['an empty owner field', ['type: intent', 'owner:', 'status: review'], 'structure-owner'],
-      ['no status field', INTENT_FIELDS.slice(0, 2), 'structure-status'],
-      ['a status outside the list', ['type: intent', 'owner: Ana Nowak', 'status: done'], 'structure-status'],
-      ['a placeholder', ['type: intent', 'owner: <name>', 'status: review'], 'structure-placeholder'],
-      ['an em-dash', ['type: intent', 'owner: Ana — Nowak', 'status: review'], 'em-dash'],
+      ['a status field', [...INTENT_FIELDS, 'status: review'], 'structure-frontmatter'],
+      ['no owner field', ['type: intent'], 'structure-owner'],
+      ['an empty owner field', ['type: intent', 'owner:'], 'structure-owner'],
+      ['a placeholder', ['type: intent', 'owner: <name>'], 'structure-placeholder'],
+      ['an em-dash', ['type: intent', 'owner: Ana — Nowak'], 'em-dash'],
     ]) {
       test(`an intent with ${name} fails`, () => {
         assert.deepEqual(rules(withFields(fields), 'intent'), [rule]);
       });
     }
-
-    test('a status in upper case passes', () => {
-      assert.deepEqual(rules(withFields(['type: intent', 'owner: Ana Nowak', 'status: Review']), 'intent'), []);
-    });
 
     test('a spec with no relates field fails', () => {
       assert.deepEqual(rules(spec.replace(/^relates: .*\n/m, ''), 'spec'), ['structure-relates']);
@@ -526,7 +520,7 @@ describe('frontmatter', () => {
       test(`a spec relates field with an item that is not a URL fails: ${value}`, () => {
         const found = lintText(spec.replace(`relates: ${INTENT_URL}`, `relates: ${value}`), { type: 'spec' });
         assert.deepEqual(found.map((f) => [f.line, f.rule, f.message]), [
-          [5, 'structure-relates', 'each item of the "relates" field must be a URL; write the field as "relates: <URL>, <URL>"'],
+          [4, 'structure-relates', 'each item of the "relates" field must be a URL; write the field as "relates: <URL>, <URL>"'],
         ]);
       });
     }
@@ -561,7 +555,7 @@ describe('frontmatter', () => {
       const dir = tempDir();
       writeFileSync(join(dir, 'spec.md'), exportTemplate('spec'));
       const found = lintText(exportTemplate('intent'), { type: 'intent', form: 'git', path: join(dir, 'intent.md') });
-      assert.deepEqual(found.map((f) => [f.line, f.rule, f.message]), [[5, 'structure-relates', 'the intent relates to plan.md, but no plan.md is next to it']]);
+      assert.deepEqual(found.map((f) => [f.line, f.rule, f.message]), [[4, 'structure-relates', 'the intent relates to plan.md, but no plan.md is next to it']]);
     });
 
     test('a plan with no relates field fails', () => {
@@ -601,7 +595,7 @@ describe('frontmatter', () => {
     });
 
     test('a value in double quotes passes', () => {
-      assert.deepEqual(rules(withFields(['type: intent', 'owner: "Ana: Nowak"', 'status: review']), 'intent'), []);
+      assert.deepEqual(rules(withFields(['type: intent', 'owner: "Ana: Nowak"']), 'intent'), []);
     });
 
     for (const [name, line] of [
@@ -613,18 +607,18 @@ describe('frontmatter', () => {
       ['no colon', 'core team'],
     ]) {
       test(`a frontmatter line with ${name} fails on its line`, () => {
-        const found = lintText(withFields(['type: intent', line, 'owner: Ana Nowak', 'status: review']), { type: 'intent' });
+        const found = lintText(withFields(['type: intent', line, 'owner: Ana Nowak']), { type: 'intent' });
         assert.deepEqual(found.map((f) => [f.line, f.rule]), [[3, 'structure-frontmatter']]);
       });
     }
 
     test('a field that appears twice fails on the second line', () => {
       const found = lintText(withFields([...INTENT_FIELDS, 'owner: Bo']), { type: 'intent' });
-      assert.deepEqual(found.map((f) => [f.line, f.rule, f.message]), [[5, 'structure-frontmatter', 'the field "owner" appears twice']]);
+      assert.deepEqual(found.map((f) => [f.line, f.rule, f.message]), [[4, 'structure-frontmatter', 'the field "owner" appears twice']]);
     });
 
     test('a frontmatter with no closing line fails', () => {
-      assert.ok(rules(intent.replace('status: review\n---\n', 'status: review\n'), 'intent').includes('structure-frontmatter'));
+      assert.ok(rules(intent.replace('owner: Ana Nowak\n---\n', 'owner: Ana Nowak\n'), 'intent').includes('structure-frontmatter'));
     });
   });
 });
@@ -952,7 +946,7 @@ describe('cli', () => {
     test('with no --form, an intent is linted in the Linear form', () => {
       const r = run('--type', 'intent', exported);
       assert.equal(r.status, 1);
-      assert.match(r.stdout, /:9: structure-title: a Linear document has no "# " title line/);
+      assert.match(r.stdout, /:8: structure-title: a Linear document has no "# " title line/);
     });
 
     test('an unknown form exits with 2', () => {

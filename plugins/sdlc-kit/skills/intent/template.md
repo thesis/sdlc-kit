@@ -1,7 +1,6 @@
 ---
 type: intent
 owner: <name>
-status: draft | review | approved
 relates: <spec URL>, <plan PR URL>
 ---
 
