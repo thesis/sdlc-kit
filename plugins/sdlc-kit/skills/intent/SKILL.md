@@ -29,7 +29,7 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
    6. the constraints;
    7. what nobody knows yet.
 
-   Stop the questions about a section when it has one concrete answer. Also stop when the owner says "unknown". An unknown answer becomes an open problem.
+   Stop the questions about a section when it has one concrete answer. Also stop when the owner says "unknown". An unknown answer becomes an open problem. When the owner gives a number with no measurement, ask who gives the estimate. Write the number with the source `Source: an estimate of <role>, <name>.`
 3. Push back on solution talk. When the owner names a contract function, a file or a parameter, ask what outcome it serves. Write down that outcome. Write the named detail under "6. Constraints" only when it is a real constraint.
 4. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
    - Fill every section of the template.
