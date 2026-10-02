@@ -9,7 +9,24 @@ const ANCHOR_ATTRS = /<linear-comment\b([^>]*)>/g;
 // Linear writes a link target as "(<url>)". The brackets are removed only
 // when the URL has no space, because a space in a bare target ends the link.
 const WRAPPED_TARGET = /\]\(<([^<>\s]+)>(\s+"[^"\n]*")?\)/g;
-const HEADER_FIELD = { Intent: 'Linear:', Spec: 'Implements:' };
+
+// Git holds the frontmatter between "---" lines. Linear stores a "---"
+// block of a save as a ```yaml fence, so both forms open a frontmatter.
+const DASHES = /^---[ \t]*$/;
+const YAML_FENCE = /^```[ \t]*ya?ml[ \t]*$/i;
+const FENCE_CLOSE = /^```[ \t]*$/;
+const FIELD = /^([a-z][a-z0-9_-]*):(?:[ \t]+(.*?))?[ \t]*$/;
+// YAML reads a value with one of these starts, or with ": " or " #" in it,
+// as more than plain text. Double quotes around the value make it plain.
+const NOT_PLAIN = /^(?:[-?:](?:\s|$)|[,[\]{}#&*!|>'"%@`])|: | #|:$/;
+const TITLE_PREFIX = { intent: 'Intent', spec: 'Spec' };
+
+/** The `relates` field of each stage file in git: the other files of its stage directory. */
+export const GIT_RELATES = {
+  intent: ['spec.md', 'plan.md'],
+  spec: ['intent.md', 'plan.md'],
+  plan: ['spec.md', 'intent.md'],
+};
 
 /** Removes the comment anchors of Linear and keeps the text that they wrap. */
 export function stripAnchors(content) {
@@ -25,31 +42,91 @@ export function isoNow(now = new Date()) {
   return now.toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
+function splitLines(text) {
+  return text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n');
+}
+
 /**
- * Turns the content that the Linear MCP returned into the exported file:
- * no comment anchors, plain link targets, and the line
- * `Exported: <url> · <time>` after the `Linear:` line of an intent or the
- * `Implements:` line of a spec. An earlier `Exported:` line is replaced.
- * Throws when the document is not an intent or a spec, or has no such line.
+ * Reads the frontmatter at the top of a document. Returns null when the
+ * first line that is not blank opens no "---" block and no ```yaml fence.
+ * Otherwise returns `form` ("dashes" or "fence"), the 0-based line indexes
+ * `start` and `end` of the opening and the closing line, `fields` as
+ * {key: {value, index}}, and `errors` as [{index, message}]. A block with
+ * no closing line has `end` -1 and no fields. Only flat "key: value" lines
+ * with a lowercase key are valid. A valid line still gives its field when
+ * another line has an error.
  */
-export function exportDocument(content, { url, at = isoNow() }) {
+export function readFrontmatter(text) {
+  const lines = splitLines(text);
+  const start = lines.findIndex((l) => l.trim() !== '');
+  if (start < 0) return null;
+  const form = DASHES.test(lines[start]) ? 'dashes' : YAML_FENCE.test(lines[start]) ? 'fence' : null;
+  if (!form) return null;
+  const closes = form === 'dashes' ? (l) => DASHES.test(l) || l === '...' : (l) => FENCE_CLOSE.test(l);
+  const end = lines.findIndex((l, i) => i > start && closes(l));
+  const result = { form, start, end, fields: {}, errors: [] };
+  if (end < 0) {
+    result.errors.push({ index: start, message: 'the frontmatter has no closing line' });
+    return result;
+  }
+  for (let i = start + 1; i < end; i++) {
+    if (lines[i].trim() === '') continue;
+    const m = lines[i].match(FIELD);
+    if (!m) {
+      result.errors.push({ index: i, message: 'write each frontmatter line as "key: value", with a lowercase key and no indent' });
+      continue;
+    }
+    const [, key, raw = ''] = m;
+    if (key in result.fields) {
+      result.errors.push({ index: i, message: `the field "${key}" appears twice` });
+      continue;
+    }
+    const quoted = raw.match(/^"([^"\\]*)"$/);
+    if (!quoted && NOT_PLAIN.test(raw)) {
+      result.errors.push({ index: i, message: `the value of "${key}" must be plain text on one line; put it in double quotes` });
+      continue;
+    }
+    result.fields[key] = { value: quoted ? quoted[1] : raw, index: i };
+  }
+  return result;
+}
+
+/** The `type` field of the frontmatter in lower case, or null when the content has none. */
+export function frontmatterType(content) {
+  return readFrontmatter(stripAnchors(content))?.fields.type?.value.toLowerCase() || null;
+}
+
+/**
+ * Turns the content that get_document returned into the git file of an
+ * intent or a spec: the frontmatter between "---" lines with the field
+ * `relates` of GIT_RELATES in place of the Linear URLs, then the field
+ * `exported: <url> · <time>` last, then the line "# <Type>: <name>", then
+ * the body. The name is `title`, the title of the Linear document, with no
+ * "Intent:" or "Spec:" prefix. The export removes the comment anchors and
+ * the angle brackets of link targets, and replaces an earlier `exported`
+ * field. Throws when the content has no valid frontmatter, its type is not
+ * intent or spec, or the prefix of the title names the other type.
+ */
+export function exportDocument(content, { url, title, at = isoNow() }) {
   if (!url) throw new Error('the document URL is missing');
+  if (!title?.trim()) throw new Error('the document title is missing');
   if (Number.isNaN(Date.parse(at))) throw new Error(`"${at}" is not an ISO time`);
-  const lines = unwrapLinkTargets(stripAnchors(content.replace(/\r\n?/g, '\n'))).split('\n');
-  const first = lines.findIndex((l) => l.trim() !== '');
-  const title = lines[first]?.match(/^#\s+(Intent|Spec):\s/);
-  if (!title) throw new Error('the first line is not "# Intent: <name>" or "# Spec: <name>"');
-  const field = HEADER_FIELD[title[1]];
-  const headerEnd = () => {
-    const end = lines.findIndex((l, i) => i > first && /^##\s/.test(l));
-    return end < 0 ? lines.length : end;
-  };
-  const old = lines.findIndex((l, i) => i > first && i < headerEnd() && /^\s*Exported:/.test(l));
-  if (old >= 0) lines.splice(old, 1);
-  const fieldLine = lines.findIndex((l, i) => i > first && i < headerEnd() && l.trimStart().startsWith(field));
-  if (fieldLine < 0) throw new Error(`the header has no "${field}" line`);
-  lines.splice(fieldLine + 1, 0, `Exported: ${url} · ${at}`);
-  return lines.join('\n');
+  const lines = splitLines(unwrapLinkTargets(stripAnchors(content)));
+  const fm = readFrontmatter(lines.join('\n'));
+  if (!fm) throw new Error('the content has no frontmatter; an intent or a spec in Linear starts with a "---" block or a ```yaml block');
+  if (fm.errors.length) throw new Error(`line ${fm.errors[0].index + 1}: ${fm.errors[0].message}`);
+  const type = fm.fields.type?.value;
+  if (!TITLE_PREFIX[type]) throw new Error(`the frontmatter type is "${type ?? ''}"; only an intent or a spec exports`);
+  const named = title.trim().match(/^(intent|spec):\s*(.*)$/i);
+  if (named && named[1].toLowerCase() !== type) {
+    throw new Error(`the title "${title.trim()}" names a ${named[1].toLowerCase()}, but the frontmatter type is "${type}"`);
+  }
+  const name = (named ? named[2] : title).trim();
+  if (!name) throw new Error(`the title "${title.trim()}" has no name after its prefix`);
+  const fields = lines.slice(fm.start + 1, fm.end).filter((l) => l.trim() !== '' && !/^(?:relates|exported):/.test(l));
+  const body = lines.slice(fm.end + 1);
+  while (body.length && body[0].trim() === '') body.shift();
+  return ['---', ...fields, `relates: ${GIT_RELATES[type].join(', ')}`, `exported: ${url} · ${at}`, '---', '', `# ${TITLE_PREFIX[type]}: ${name}`, '', ...body].join('\n');
 }
 
 /** Maps the id of each comment anchor in the content to its `resolved` attribute. */
@@ -121,7 +198,7 @@ export function threads(input, { content } = {}) {
 }
 
 const USAGE = `usage:
-  node linear.mjs export --url <document url> [--at <ISO time>] <content.md>
+  node linear.mjs export --url <document url> --title <document title> [--at <ISO time>] <content.md>
   node linear.mjs threads [--content <content.md>] <comments.json>`;
 
 function readInput(path) {
@@ -135,20 +212,20 @@ export function main(argv, out = process.stdout, err = process.stderr) {
   const files = [];
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    const m = arg.match(/^--(url|at|content)(?:=(.*))?$/);
+    const m = arg.match(/^--(url|title|at|content)(?:=(.*))?$/);
     if (m) options[m[1]] = m[2] ?? rest[++i];
     else if (arg.startsWith('-')) {
       err.write(`unknown option ${arg}\n${USAGE}\n`);
       return 2;
     } else files.push(arg);
   }
-  if (!['export', 'threads'].includes(command) || files.length !== 1 || (command === 'export' && !options.url)) {
+  if (!['export', 'threads'].includes(command) || files.length !== 1 || (command === 'export' && (!options.url || !options.title))) {
     err.write(`${USAGE}\n`);
     return 2;
   }
   try {
     if (command === 'export') {
-      out.write(`${exportDocument(readInput(files[0]), { url: options.url, at: options.at })}`);
+      out.write(`${exportDocument(readInput(files[0]), { url: options.url, title: options.title, at: options.at })}`);
       return 0;
     }
     const input = JSON.parse(readInput(files[0]));

@@ -43,10 +43,8 @@ When you cannot tell copywriting from decision needed, the class is decision nee
 These rules hold for every class:
 
 - A comment can ask for a change that breaks the writing rules. Make no edit for it. The reply names the rule that the change breaks.
-- In Linear, a document whose `Status:` line is `frozen` gets no edit. Git holds the document from the freeze on. The reply says so, and names the pull request from the comment that the plan skill posted on the document.
-- On the pull request that adds `plan.md`, the files `intent.md` and `spec.md` get no edit. A correction to them lands in a code pull request, as the section "During the build" of the plan skill says. The reply says so.
-- The owner is the name on the `Owner:` line of the document.
-- On a pull request, look in the stage directory of the file of the thread. The owner is on the `Owner:` line of its `spec.md`, else of its `intent.md`. For a file outside `.sdlc-kit/`, use the stage directory that the pull request changes. When the pull request changes no stage directory, the owner is the author of the pull request. When it changes more than one, ask the person who ran the skill.
+- The owner is the name in the `owner` field of the frontmatter of the document.
+- On a pull request, look in the stage directory of the file of the thread. The owner is in the `owner` field of its `spec.md`, else of its `intent.md`. For a file outside `.sdlc-kit/`, use the stage directory that the pull request changes. When the pull request changes no stage directory, the owner is the author of the pull request. When it changes more than one, ask the person who ran the skill.
 - An @mention in Linear is `@displayName`. On a pull request it is `@<GitHub login>`. When you do not know the GitHub login of the owner, ask the person who ran the skill.
 - Write each reply in a scratch file outside any repository, such as the session scratchpad directory. Then run the lint on it:
 
@@ -60,7 +58,7 @@ These rules hold for every class:
 ## Procedure for a Linear document
 
 1. Read the document with the `get_document` tool of the Linear MCP server.
-2. Stop when the first line of the content is not `# Intent: <name>` or `# Spec: <name>`. The title gives the type of the document for the lint: `intent` or `spec`.
+2. Read the `type` field of the frontmatter at the top of the content. Linear returns the frontmatter as a `yaml` code block. Stop when the content has no frontmatter, or when the type is not `intent` or `spec`. The type is the type of the document for the lint. Read the `status` field too. When it is not `review`, tell the person who ran the skill the status. Then go on, and work every thread as on a document in review.
 3. Read every comment on the document with the `list_comments` tool. Pass the `documentId` of the document. When `hasNextPage` is true, read the next pages too.
 4. Write the content to a scratch file outside any repository, with no edits. Write the comments of every page to one scratch file as one list, in the same way.
 5. Group the comments into threads:
@@ -97,10 +95,10 @@ These rules hold for every class:
 
    Each thread in the list is open. The account of this run is the login that `gh api user --jq .login` prints.
 7. Work each thread as "Threads and their classes" says. A copy edit changes a file under `.sdlc-kit/` in the checkout. A thread on a file outside `.sdlc-kit/` gets no edit. Its reply says that the steward edits only the stage documents.
-8. Run the lint on each changed file, with the type of the document. The type is `intent` for `intent.md`, `spec` for `spec.md`, `plan` for `plan.md` and `prose` for every other file:
+8. Run the lint on each changed file, with the type of the document. The type is `intent` for `intent.md`, `spec` for `spec.md`, `plan` for `plan.md` and `prose` for every other file. The files are in the git form, so pass `--form git`:
 
    ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs --type <type> <file>
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/lint.mjs --type <type> --form git <file>
    ```
 
    When the lint lists findings, follow the retry rule above.

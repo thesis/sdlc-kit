@@ -10,7 +10,9 @@ import {
   PATCH_REASON,
   SAVE_TOOL,
   missingDirReason,
+  noFrontmatterReason,
   outOfTimeReason,
+  typeMismatchReason,
   unresolvedReason,
   decide,
   denyOutput,
@@ -29,9 +31,13 @@ function tempDir(prefix = 'sdlc-kit-gate-') {
   return realpathSync(mkdtempSync(join(tmpdir(), prefix)));
 }
 
-const INTENT = `# Intent: Weekly export of vault deposits
-Owner: Ana Nowak · Status: in review
-Linear: pending
+// An intent in the Linear form: the frontmatter as Linear stores it, and no
+// title line.
+const INTENT = `\`\`\`yaml
+type: intent
+owner: Ana Nowak
+status: review
+\`\`\`
 
 ## 1. Executive summary
 - The finance team gets a weekly report of the deposits.
@@ -56,8 +62,63 @@ None.
 `;
 const DASHED = INTENT.replace('does a manual count every Monday.', 'does a manual count — every Monday.');
 
-const PLAN = `# Plan: Weekly export
-Implements: spec.md @ 1a2b3c4 · intent.md @ 5d6e7f8
+// The same intent in the git form that linear.mjs export writes.
+const GIT_INTENT = INTENT.replace(
+  /^```yaml\n([\s\S]*?)```\n/,
+  '---\n$1relates: spec.md, plan.md\nexported: https://linear.app/thesis/document/intent-1 · 2026-09-29T00:00:00Z\n---\n\n# Intent: Weekly export of vault deposits\n',
+);
+
+// A spec in the git form that linear.mjs export writes.
+const GIT_SPEC = `---
+type: spec
+owner: Ana Nowak
+status: approved
+relates: intent.md, plan.md
+exported: https://linear.app/thesis/document/spec-1 · 2026-09-30T00:00:00Z
+---
+
+# Spec: Weekly export of vault deposits
+
+## 1. Terms
+A report is the list of the deposits of one week.
+
+## 2. Scope
+The report is in scope. Withdrawals are out of scope.
+
+## 3. Requirements
+- R1: The finance team gets the report every Monday.
+
+## 4. How it works
+A script counts the deposits and writes the report.
+
+## 5. Worked example
+Ten deposits of 100 USD give a report with a total of 1000 USD.
+
+## 6. Roles and permissions
+The finance team reads the report.
+
+## 7. Deliverables
+The report script.
+
+## 8. Trade-offs
+A weekly report is late for a deposit on Tuesday. The low cost wins.
+
+## 9. Risks
+1. The script stops. Response: the analyst does the count.
+
+## 10. Open decisions
+None.
+
+## 11. Intent open problems, answered
+None.
+`;
+
+const PLAN = `---
+type: plan
+relates: spec.md, intent.md
+---
+
+# Plan: Weekly export
 
 ## 1. Summary
 The export lands in one phase.
@@ -227,18 +288,15 @@ describe('parsePush', () => {
 
 describe('documentType', () => {
   for (const [input, expected] of [
-    [{ title: 'Intent: Weekly export' }, 'intent'],
-    [{ title: 'Spec: Weekly export' }, 'spec'],
-    [{ title: 'Plan: Weekly export' }, null],
-    [{ content: '# Plan: Weekly export\n' }, null],
-    [{ content: '\n# Intent: Weekly export\nOwner: A' }, 'intent'],
-    [{ title: 'Notes', content: '# Spec: Weekly export\n' }, 'spec'],
-    [{ title: 'Meeting notes', content: '# Notes\nIntent: none' }, null],
-    [{ title: 'Intentions', content: 'Text.' }, null],
-    [{ title: 'intent: weekly export' }, 'intent'],
-    [{ title: 'SPEC:Weekly export' }, 'spec'],
-    [{ content: '\uFEFF# Intent: Weekly export\n' }, 'intent'],
-    [{ title: '\uFEFFSpec: Weekly export' }, 'spec'],
+    [{ content: INTENT }, 'intent'],
+    [{ content: '---\ntype: spec\n---\n' }, 'spec'],
+    [{ content: '\n```yaml\ntype: Spec\n```\n' }, 'spec'],
+    [{ content: '\uFEFF---\ntype: intent\n---\n' }, 'intent'],
+    [{ content: '```yaml\ntype: plan\n```\n' }, null],
+    [{ content: '---\ntype: memo\n---\n' }, null],
+    [{ content: '# Intent: Weekly export\nOwner: A · Status: draft\n' }, null],
+    [{ content: 'type: intent\n' }, null],
+    [{ title: 'Intent: Weekly export' }, null],
     [{}, null],
     [{ path: '.sdlc-kit/2026-09-probe/intent.md' }, 'intent'],
     [{ path: '.sdlc-kit/2026-09-probe/spec.md' }, 'spec'],
@@ -280,7 +338,7 @@ function repository() {
   sh(work, 'remote', 'add', 'origin', remote);
   sh(work, 'remote', 'add', 'upstream', join(root, 'other.git'));
   write(work, 'README.md', 'A repository.\n');
-  write(work, '.sdlc-kit/2026-09-probe/intent.md', INTENT);
+  write(work, '.sdlc-kit/2026-09-probe/intent.md', GIT_INTENT);
   write(work, '.sdlc-kit/2026-09-probe/spec.md', '# Spec: Weekly export\n');
   write(work, '.sdlc-kit/2026-09-probe/notes.txt', 'Not markdown.\n');
   write(work, 'docs/guide.md', 'Outside the stage directory.\n');
@@ -374,7 +432,7 @@ function mainMovesOn({ pushed = false } = {}) {
   sh(root, 'init', '--bare', '-q', '-b', 'main', join(root, 'remote.git'));
   sh(root, 'init', '-q', '-b', 'main', work);
   sh(work, 'remote', 'add', 'origin', join(root, 'remote.git'));
-  write(work, '.sdlc-kit/2026-09-probe/intent.md', INTENT);
+  write(work, '.sdlc-kit/2026-09-probe/intent.md', GIT_INTENT);
   sh(work, 'add', '-A');
   sh(work, 'commit', '-q', '-m', 'Add the intent');
   sh(work, 'push', '-q', 'origin', 'main');
@@ -384,7 +442,7 @@ function mainMovesOn({ pushed = false } = {}) {
   sh(work, 'commit', '-q', '-m', 'Add a');
   if (pushed) sh(work, 'push', '-q', 'origin', 'feat');
   sh(work, 'checkout', '-q', 'main');
-  write(work, '.sdlc-kit/2026-09-probe/intent.md', INTENT.replace('The finance team reads the report.', 'The finance team and the auditors read the report.'));
+  write(work, '.sdlc-kit/2026-09-probe/intent.md', GIT_INTENT.replace('The finance team reads the report.', 'The finance team and the auditors read the report.'));
   sh(work, 'commit', '-q', '-am', 'Name the auditors');
   sh(work, 'push', '-q', 'origin', 'main');
   sh(work, 'checkout', '-q', 'feat');
@@ -414,7 +472,7 @@ describe('the documents of a push', () => {
   test('a merge commit that edits a document gets that document judged', () => {
     const { work } = mainMovesOn({ pushed: true });
     sh(work, 'merge', '-q', '--no-commit', '--no-ff', 'origin/main');
-    write(work, '.sdlc-kit/2026-09-probe/intent.md', INTENT.replace('The finance team reads the report.', 'The finance team and the board read the report.'));
+    write(work, '.sdlc-kit/2026-09-probe/intent.md', GIT_INTENT.replace('The finance team reads the report.', 'The finance team and the board read the report.'));
     sh(work, 'add', '-A');
     sh(work, 'commit', '-q', '--no-edit');
     assert.deepEqual(bash(work, 'git push origin feat').documents, [{ name: '.sdlc-kit/2026-09-probe/intent.md', decision: 'deny' }]);
@@ -436,13 +494,33 @@ describe('the documents of a push', () => {
     assert.deepEqual(bash(work, 'git push fork feat'), { decision: 'allow', documents: [] });
   });
 
+  for (const [name, path, text, line] of [
+    ['an intent in the Linear form', 'intent.md', INTENT, /intent\.md:1: structure-frontmatter: a git file starts on line 1 with the frontmatter between two "---" lines/],
+    ['a spec file with the type of an intent', 'spec.md', GIT_INTENT, /spec\.md:2: structure-frontmatter: the "type" field must be "spec"/],
+  ]) {
+    test(`a push of ${name} is denied by the lint of the git form`, () => {
+      const root = tempDir('sdlc-kit-repo-');
+      const work = join(root, 'work');
+      sh(root, 'init', '--bare', '-q', '-b', 'main', join(root, 'remote.git'));
+      sh(root, 'init', '-q', '-b', 'main', work);
+      sh(work, 'remote', 'add', 'origin', join(root, 'remote.git'));
+      write(work, `.sdlc-kit/2026-09-probe/${path}`, text);
+      sh(work, 'add', '-A');
+      sh(work, 'commit', '-q', '-m', 'Add the stage');
+      const result = bash(work, 'git push origin main', 'pass');
+      assert.equal(result.decision, 'deny');
+      assert.match(result.reason, line);
+    });
+  }
+
   test('a first push to an empty remote judges every document at the local ref', () => {
     const root = tempDir('sdlc-kit-repo-');
     const work = join(root, 'work');
     sh(root, 'init', '--bare', '-q', '-b', 'main', join(root, 'remote.git'));
     sh(root, 'init', '-q', '-b', 'main', work);
     sh(work, 'remote', 'add', 'origin', join(root, 'remote.git'));
-    write(work, '.sdlc-kit/2026-09-probe/intent.md', INTENT);
+    write(work, '.sdlc-kit/2026-09-probe/intent.md', GIT_INTENT);
+    write(work, '.sdlc-kit/2026-09-probe/spec.md', GIT_SPEC);
     write(work, '.sdlc-kit/2026-09-probe/plan.md', PLAN);
     sh(work, 'add', '-A');
     sh(work, 'commit', '-q', '-m', 'Add the stage');
@@ -451,8 +529,25 @@ describe('the documents of a push', () => {
       documents: [
         { name: '.sdlc-kit/2026-09-probe/intent.md', decision: 'allow' },
         { name: '.sdlc-kit/2026-09-probe/plan.md', decision: 'allow' },
+        { name: '.sdlc-kit/2026-09-probe/spec.md', decision: 'allow' },
       ],
     });
+  });
+
+  test('a push of documents whose spec is only in the working tree is denied by the lint', () => {
+    const root = tempDir('sdlc-kit-repo-');
+    const work = join(root, 'work');
+    sh(root, 'init', '--bare', '-q', '-b', 'main', join(root, 'remote.git'));
+    sh(root, 'init', '-q', '-b', 'main', work);
+    sh(work, 'remote', 'add', 'origin', join(root, 'remote.git'));
+    write(work, '.sdlc-kit/2026-09-probe/intent.md', GIT_INTENT);
+    write(work, '.sdlc-kit/2026-09-probe/plan.md', PLAN);
+    sh(work, 'add', '-A');
+    sh(work, 'commit', '-q', '-m', 'Add the plan');
+    write(work, '.sdlc-kit/2026-09-probe/spec.md', GIT_SPEC);
+    const result = bash(work, 'git push origin main', 'pass');
+    assert.equal(result.decision, 'deny');
+    assert.match(result.reason, /\n\.sdlc-kit\/2026-09-probe\/intent\.md:5: structure-relates: the intent relates to spec\.md, but no spec\.md is next to it\n/);
   });
 });
 
@@ -464,7 +559,7 @@ describe('gate', () => {
     assert.equal(
       result.reason,
       'document-gate: the lint found these lines in Intent: Weekly export:\n' +
-        'Intent: Weekly export:9: em-dash: em-dash (U+2014); use a comma, a colon, parentheses or two sentences\n' +
+        'Intent: Weekly export:11: em-dash: em-dash (U+2014); use a comma, a colon, parentheses or two sentences\n' +
         'Fix the named lines. Then repeat the call.',
     );
     assert.equal(existsSync(record), false);
@@ -588,7 +683,59 @@ describe('gate', () => {
 describe('decide', () => {
   const save = (tool_input, tool_name = SAVE) => decide({ tool_name, tool_input }, { env: judgeEnv('pass') });
 
-  test('a patch save denies and asks for the full content', () => {
+  const SPEC_URL = 'https://linear.app/thesis/document/spec-1';
+  const PR_URL = 'https://github.com/thesis/vault/pull/7';
+
+  // A patch save with the fake judge set to fail. FAKE_RECORD stays absent
+  // when the gate starts no judge run.
+  const patchSave = (patch) => {
+    const record = join(tempDir(), 'record.json');
+    const result = decide({ tool_name: SAVE, tool_input: { id: 'doc-1', patch } }, { env: judgeEnv('fail', { FAKE_RECORD: record }) });
+    return { result, judged: existsSync(record) };
+  };
+
+  for (const [name, patch] of [
+    ['a status patch', [{ op: 'replace', old_string: 'status: review', new_string: 'status: approved' }]],
+    ['a relates patch on an approved document', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: `relates: ${SPEC_URL}, ${PR_URL}` }]],
+    ['an insert of a relates line after the status line', [{ op: 'insert_after', anchor: 'status: approved', text: `\nrelates: ${SPEC_URL}` }]],
+    ['an insert of an owner line before the status line', [{ op: 'insert_before', anchor: 'status: approved', text: 'owner: Bo Lin\n' }]],
+    ['a change of the type to another Linear stage type', [{ op: 'replace', old_string: 'type: intent', new_string: 'type: spec' }]],
+    ['an insert of a type line', [{ op: 'insert_before', anchor: 'owner: Ana Nowak', text: 'type: intent\n' }]],
+  ]) {
+    test(`${name} allows with no lint and no judge run`, () => {
+      const { result, judged } = patchSave(patch);
+      assert.deepEqual(result, { decision: 'allow', documents: [{ name: 'doc-1', decision: 'allow' }] });
+      assert.equal(judged, false);
+    });
+  }
+
+  for (const [name, patch] of [
+    ['a patch of a body line', [{ op: 'replace', old_string: 'The analyst does a manual count every Monday.', new_string: 'The analyst counts by hand.' }]],
+    ['a status outside the list', [{ op: 'replace', old_string: 'status: review', new_string: 'status: frozen' }]],
+    ['a type of plan', [{ op: 'replace', old_string: 'type: intent', new_string: 'type: plan' }]],
+    ['a type that is no stage type', [{ op: 'insert_after', anchor: 'status: review', text: '\ntype: memo' }]],
+    ['a frontmatter op and a body op', [
+      { op: 'replace', old_string: 'status: review', new_string: 'status: approved' },
+      { op: 'replace', old_string: 'None.', new_string: 'One problem.' },
+    ]],
+    ['a relates item that is not a URL', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: `relates: ${SPEC_URL}, plan.md` }]],
+    ['a replace that changes the key', [{ op: 'replace', old_string: 'status: review', new_string: `relates: ${SPEC_URL}` }]],
+    ['a replace of every match', [{ op: 'replace', old_string: 'status: review', new_string: 'status: approved', replace_all: true }]],
+    ['a replace that deletes a line', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: '' }]],
+    ['an insert of two lines', [{ op: 'insert_after', anchor: 'status: approved', text: `\nrelates: ${SPEC_URL}\nowner: Bo` }]],
+    ['an insert at a body anchor', [{ op: 'insert_after', anchor: '## 7. Open problems', text: `\nrelates: ${SPEC_URL}` }]],
+    ['an append', [{ op: 'append', text: `\nrelates: ${SPEC_URL}` }]],
+    ['a prepend', [{ op: 'prepend', text: 'status: approved\n' }]],
+    ['a replace_range', [{ op: 'replace_range', from: 'status: review', to: '## 1.', new_string: 'status: approved\n' }]],
+  ]) {
+    test(`a patch save with ${name} denies with no judge run`, () => {
+      const { result, judged } = patchSave(patch);
+      assert.deepEqual(result, { decision: 'deny', reason: PATCH_REASON, documents: [{ name: 'doc-1', decision: 'deny' }] });
+      assert.equal(judged, false);
+    });
+  }
+
+  test('a patch save in another shape denies and asks for the full content', () => {
     assert.deepEqual(save({ id: 'doc-1', patch: [{ replace: { old_string: 'a', new_string: 'b' } }] }), {
       decision: 'deny',
       reason: PATCH_REASON,
@@ -601,7 +748,7 @@ describe('decide', () => {
   });
 
   test('a patch save with content too denies', () => {
-    assert.equal(save({ id: 'doc-1', content: INTENT, patch: [] }).reason, PATCH_REASON);
+    assert.equal(save({ id: 'doc-1', content: INTENT, patch: [{ op: 'replace', old_string: 'status: review', new_string: 'status: approved' }] }).reason, PATCH_REASON);
   });
 
   test('a save of a document that is not a stage document allows with no judge run', () => {
@@ -618,12 +765,72 @@ describe('decide', () => {
   test('a save of an intent with an em-dash denies', () => {
     const result = save({ title: 'Intent: Weekly export', team: 'ENG', content: DASHED });
     assert.equal(result.decision, 'deny');
-    assert.match(result.reason, /^document-gate: the lint found these lines in Intent: Weekly export:\n.*:9: em-dash:/);
+    assert.match(result.reason, /^document-gate: the lint found these lines in Intent: Weekly export:\n.*:11: em-dash:/);
   });
 
-  test('the type comes from the content when the title has none', () => {
+  test('an update by id with no title is gated by the type of its frontmatter', () => {
     const result = save({ id: 'doc-1', content: DASHED });
-    assert.match(result.reason, /in doc-1:\ndoc-1:9: em-dash/);
+    assert.match(result.reason, /in doc-1:\ndoc-1:11: em-dash/);
+  });
+
+  test('a save of an intent with a title line denies, because Linear shows the title twice', () => {
+    const result = save({ id: 'doc-1', content: INTENT.replace('```\n\n', '```\n\n# Intent: Weekly export\n\n') });
+    assert.match(result.reason, /\ndoc-1:7: structure-title: a Linear document has no "# " title line/);
+  });
+
+  test('a save of a spec in the form that Linear stores is gated as a spec', () => {
+    const stored =
+      '```yaml\ntype: spec\nowner: Łukasz Zimnoch\nstatus: review\n' +
+      'relates: https://linear.app/thesis-co/document/example-1234abcd\n```\n\n## 1. Terms\nOne term.\n';
+    assert.match(save({ id: 'doc-2', content: stored }).reason, /^document-gate: the lint found these lines in doc-2:\ndoc-2:1: structure-heading-missing: the spec has no "## 2\. Scope" heading/);
+  });
+
+  test('a save of an intent that passes the lint and the judge allows', () => {
+    assert.deepEqual(save({ title: 'Intent: Weekly export', content: INTENT }), {
+      decision: 'allow',
+      stage: 'judge',
+      costUsd: 0.01,
+      documents: [{ name: 'Intent: Weekly export', decision: 'allow' }],
+    });
+  });
+
+  test('a save with a stage title and no frontmatter denies with no judge run', () => {
+    const record = join(tempDir(), 'record.json');
+    const result = decide(
+      { tool_name: SAVE, tool_input: { title: 'Spec: Weekly export', content: '## 1. Terms\nOne term.\n' } },
+      { env: judgeEnv('pass', { FAKE_RECORD: record }) },
+    );
+    assert.deepEqual(result, {
+      decision: 'deny',
+      reason: noFrontmatterReason('Spec: Weekly export', 'spec'),
+      documents: [{ name: 'Spec: Weekly export', decision: 'deny' }],
+    });
+    assert.equal(existsSync(record), false);
+  });
+
+  test('an update by id of a document in the old form denies and asks for the frontmatter', () => {
+    const old = '# Intent: Weekly export\nOwner: Ana Nowak · Status: review\nLinear: pending\n\n## 1. Executive summary\n';
+    assert.equal(save({ id: 'doc-1', content: old }).reason, noFrontmatterReason('doc-1', 'intent'));
+  });
+
+  for (const [title, content, titleType, type] of [
+    ['Spec: Weekly export', INTENT, 'spec', 'intent'],
+    ['intent: weekly export', '```yaml\ntype: plan\n```\n', 'intent', 'plan'],
+  ]) {
+    test(`a save titled "${title}" with the type "${type}" denies`, () => {
+      assert.equal(save({ title, content }).reason, typeMismatchReason(title, titleType, type));
+    });
+  }
+
+  test('a save of a plan in Linear allows with no judge run', () => {
+    const record = join(tempDir(), 'record.json');
+    const result = decide({ tool_name: SAVE, tool_input: { title: 'Plan: Weekly export', content: PLAN } }, { env: judgeEnv('fail', { FAKE_RECORD: record }) });
+    assert.equal(result.decision, 'allow');
+    assert.equal(existsSync(record), false);
+  });
+
+  test('a save with a title that names no stage type is gated by its frontmatter', () => {
+    assert.match(save({ title: 'Weekly export', content: DASHED }).reason, /in Weekly export:\nWeekly export:11: em-dash/);
   });
 
   test('a save through another Linear server name is gated', () => {
@@ -659,7 +866,7 @@ describe('decide', () => {
 
   describe('a push', () => {
     const { root, work } = repository();
-    sh(work, 'rm', '-q', '.sdlc-kit/2026-09-probe/spec.md');
+    write(work, '.sdlc-kit/2026-09-probe/spec.md', GIT_SPEC);
     write(work, '.sdlc-kit/2026-09-probe/plan.md', PLAN.replace('lands in one phase.', 'lands in one phase — the first.'));
     sh(work, 'add', '-A');
     sh(work, 'commit', '-m', 'Add a plan');
@@ -668,7 +875,7 @@ describe('decide', () => {
     test('a push of a plan with an em-dash denies with the lint line', () => {
       const result = bash('git push origin HEAD');
       assert.equal(result.decision, 'deny');
-      assert.match(result.reason, /\n\.sdlc-kit\/2026-09-probe\/plan\.md:5: em-dash: /);
+      assert.match(result.reason, /\n\.sdlc-kit\/2026-09-probe\/plan\.md:9: em-dash: /);
     });
 
     test('the first denial stops the run', () => {
@@ -684,6 +891,7 @@ describe('decide', () => {
       assert.deepEqual(result.documents, [
         { name: '.sdlc-kit/2026-09-probe/intent.md', decision: 'allow' },
         { name: '.sdlc-kit/2026-09-probe/plan.md', decision: 'allow' },
+        { name: '.sdlc-kit/2026-09-probe/spec.md', decision: 'allow' },
       ]);
     });
 
@@ -739,12 +947,12 @@ describe('decide', () => {
       sh(work, 'commit', '-am', 'Break the plan');
       const result = bash(`cd ${work} && out=$(git push origin HEAD 2>&1)`, root);
       assert.equal(result.decision, 'deny');
-      assert.match(result.reason, /plan\.md:5: em-dash/);
+      assert.match(result.reason, /plan\.md:9: em-dash/);
     });
 
     test('a push with GIT_DIR from another directory reads that repository', () => {
       const result = bash(`GIT_DIR=${join(work, '.git')} GIT_WORK_TREE=${work} git push origin HEAD`, root);
-      assert.match(result.reason, /plan\.md:5: em-dash/);
+      assert.match(result.reason, /plan\.md:9: em-dash/);
       write(work, '.sdlc-kit/2026-09-probe/plan.md', PLAN);
       sh(work, 'commit', '-am', 'Fix the plan again');
     });

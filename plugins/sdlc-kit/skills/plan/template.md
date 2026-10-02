@@ -1,5 +1,9 @@
+---
+type: plan
+relates: spec.md, intent.md
+---
+
 # Plan: <name>
-Implements: spec.md @ <sha> · intent.md @ <sha>
 
 ## 1. Summary
 <!-- One line per spec deliverable: the deliverable, where it lands in the repository, and the phase that ships it. Refer to the section of the spec for each deliverable in the cross-reference form. -->

@@ -1,5 +1,11 @@
+---
+type: spec
+owner: <name>
+status: draft | review | approved
+relates: <intent URL>, <plan PR URL>
+---
+
 # Spec: <name>
-Implements: Intent <url> · Owner: <name> · Status: draft | in review | agreed | frozen
 
 ## 1. Terms
 <!-- One table. Each term has one meaning. Use each term with that meaning every time. -->
