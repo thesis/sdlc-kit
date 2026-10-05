@@ -76,6 +76,7 @@ export const VERDICT_SCHEMA = {
 // The stage types that live in Linear. The plan lives only in git, so a
 // Linear document of the type `plan` is not a stage document.
 const LINEAR_TYPES = ['intent', 'spec'];
+const STAGE_TYPES = ['intent', 'spec', 'plan'];
 const STAGE_PREFIX = /^(intent|spec):/i;
 const FILE_TYPES = { 'intent.md': 'intent', 'spec.md': 'spec', 'plan.md': 'plan' };
 
@@ -720,7 +721,7 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
     const declared = frontmatterType(stripBom(toolInput.content));
     const { fromTitle, fromHeading } = namedTypes(toolInput);
     if (!declared && (fromTitle || fromHeading)) return denied(noFrontmatterReason(name, fromTitle ?? fromHeading));
-    if (declared && fromTitle && declared !== fromTitle) return denied(typeMismatchReason(toolInput.title.trim(), fromTitle, declared));
+    if (STAGE_TYPES.includes(declared) && fromTitle && declared !== fromTitle) return denied(typeMismatchReason(toolInput.title.trim(), fromTitle, declared));
     const type = documentType({ content: toolInput.content });
     if (type === null) return { decision: 'allow', documents: [{ name, decision: 'allow' }] };
     const result = gate(toolInput.content, { type, form: 'linear', name, ...limits });

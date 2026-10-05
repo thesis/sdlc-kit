@@ -781,6 +781,16 @@ describe('decide', () => {
     assert.equal(save({ id: 'doc-1', content: old }).reason, noFrontmatterReason('doc-1', 'intent'));
   });
 
+  test('a save titled with a stage prefix and a type that is not a stage type allows with no judge run', () => {
+    const record = join(tempDir(), 'record.json');
+    const result = decide(
+      { tool_name: SAVE, tool_input: { title: 'Spec: Load balancer', content: '```yaml\ntype: LoadBalancer\n```\n\nNotes.\n' } },
+      { env: judgeEnv('fail', { FAKE_RECORD: record }) },
+    );
+    assert.deepEqual(result, { decision: 'allow', documents: [{ name: 'Spec: Load balancer', decision: 'allow' }] });
+    assert.equal(existsSync(record), false);
+  });
+
   for (const [title, content, titleType, type] of [
     ['Spec: Weekly export', INTENT, 'spec', 'intent'],
     ['intent: weekly export', '```yaml\ntype: plan\n```\n', 'intent', 'plan'],
