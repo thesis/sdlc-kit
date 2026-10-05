@@ -426,6 +426,14 @@ describe('pushedDocuments', () => {
   test('a local ref that does not exist lists nothing', () => {
     assert.deepEqual(pushedPaths('git push origin nothing', work), []);
   });
+
+  test('after an amend of a pushed commit, only a file that differs from the remote is listed', () => {
+    const { work: amended } = repository();
+    sh(amended, 'push', '-q', 'origin', 'main');
+    write(amended, '.sdlc-kit/2026-09-probe/spec.md', '# Spec: Weekly export, amended\n');
+    sh(amended, 'commit', '-q', '-a', '--amend', '--no-edit');
+    assert.deepEqual(pushedPaths('git push --force origin main', amended), ['.sdlc-kit/2026-09-probe/spec.md']);
+  });
 });
 
 // A work repository whose remote `origin` holds the intent on `main`. The

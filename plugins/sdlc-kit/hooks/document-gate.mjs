@@ -438,9 +438,10 @@ function withDir(push, dirUnresolved) {
   return dirUnresolved === undefined || push.unresolved !== undefined ? push : { ...push, unresolved: dirUnresolved };
 }
 
-function git(push, args, { allowFail = false } = {}) {
+function git(push, args, { allowFail = false, input } = {}) {
   const r = spawnSync('git', [...push.global, ...args], {
     cwd: push.dir,
+    input,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, ...push.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' },
@@ -488,7 +489,9 @@ function pushedRefs(push) {
  * fetch. A change that a merge commit makes itself counts too. When no
  * remote has a remote-tracking ref, as before a first push to an empty
  * remote, every commit is new, so the list holds every markdown file under
- * `.sdlc-kit/` at the local ref. Each document has `exists(name)`, which
+ * `.sdlc-kit/` at the local ref. A file with the same content at the same
+ * path on a remote-tracking ref is not listed, because a remote has it
+ * already. Each document has `exists(name)`, which
  * tells whether the file `name` is next to it at the pushed ref. Returns
  * null when the directory is not in a git repository.
  */
@@ -501,8 +504,10 @@ export function pushedDocuments(push) {
     const atLocal = new Set(
       git(inTop, ['ls-tree', '-r', '-z', '--name-only', '--full-tree', local, '--', STAGE_DIR]).split('\0').filter(Boolean),
     );
-    for (const path of changedPaths(inTop, local)) {
-      if (!atLocal.has(path) || !path.endsWith('.md')) continue;
+    const changed = changedPaths(inTop, local).filter((path) => atLocal.has(path) && path.endsWith('.md'));
+    const published = onRemote(inTop, local, changed);
+    for (const path of changed) {
+      if (published.has(path)) continue;
       documents.push({
         ref: local,
         path,
@@ -512,6 +517,21 @@ export function pushedDocuments(push) {
     }
   }
   return documents;
+}
+
+// The paths whose content at `local` is the same as at that path on a
+// remote-tracking ref, as after a rebase or an amend of commits that a
+// remote has.
+function onRemote(push, local, paths) {
+  const remotes = git(push, ['for-each-ref', '--format=%(refname)', 'refs/remotes']).split('\n').filter(Boolean);
+  // A newline in a path would split its line of the batch input, so such a
+  // path is always judged.
+  const asked = paths.filter((path) => !path.includes('\n'));
+  if (!remotes.length || !asked.length) return new Set();
+  const names = asked.flatMap((path) => [local, ...remotes].map((ref) => `${ref}:${path}`));
+  const ids = git(push, ['cat-file', '--batch-check=%(objectname)'], { input: `${names.join('\n')}\n` }).split('\n');
+  const width = remotes.length + 1;
+  return new Set(asked.filter((_, i) => ids.slice(i * width + 1, (i + 1) * width).includes(ids[i * width])));
 }
 
 const isDirectory = (dir) => existsSync(dir) && statSync(dir).isDirectory();
