@@ -7,7 +7,6 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   GATE_BUDGET_MS,
-  PATCH_REASON,
   SAVE_TOOL,
   missingDirReason,
   noFrontmatterReason,
@@ -693,60 +692,21 @@ describe('decide', () => {
   };
 
   for (const [name, patch] of [
-    ['an owner patch', [{ op: 'replace', old_string: 'owner: Ana Nowak', new_string: 'owner: Bo Lin' }]],
-    ['a relates patch that appends a URL', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: `relates: ${SPEC_URL}, ${PR_URL}` }]],
-    ['an insert of a relates line after the owner line', [{ op: 'insert_after', anchor: 'owner: Ana Nowak', text: `\nrelates: ${SPEC_URL}` }]],
-    ['an insert of an owner line before the relates line', [{ op: 'insert_before', anchor: `relates: ${SPEC_URL}`, text: 'owner: Bo Lin\n' }]],
-    ['a change of the type to another Linear stage type', [{ op: 'replace', old_string: 'type: intent', new_string: 'type: spec' }]],
-    ['an insert of a type line', [{ op: 'insert_before', anchor: 'owner: Ana Nowak', text: 'type: intent\n' }]],
+    ['a relates patch of a stage document', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: `relates: ${SPEC_URL}, ${PR_URL}` }]],
+    ['a patch of a body line', [{ op: 'replace', old_string: 'The analyst does a manual count every Monday.', new_string: 'The analyst counts by hand.' }]],
+    ['a patch that adds a comment anchor', [{ op: 'replace', old_string: 'None.', new_string: '<linear-comment id="c-1" resolved="false">None.</linear-comment>' }]],
   ]) {
     test(`${name} allows with no lint and no judge run`, () => {
       const { result, judged } = patchSave(patch);
-      assert.deepEqual(result, { decision: 'allow', documents: [{ name: 'doc-1', decision: 'allow' }] });
+      assert.deepEqual(result, { decision: 'allow', documents: [] });
       assert.equal(judged, false);
     });
   }
 
-  for (const [name, patch] of [
-    ['a patch of a body line', [{ op: 'replace', old_string: 'The analyst does a manual count every Monday.', new_string: 'The analyst counts by hand.' }]],
-    ['a status patch', [{ op: 'replace', old_string: 'status: review', new_string: 'status: approved' }]],
-    ['a type of plan', [{ op: 'replace', old_string: 'type: intent', new_string: 'type: plan' }]],
-    ['a type that is no stage type', [{ op: 'insert_after', anchor: 'owner: Ana Nowak', text: '\ntype: memo' }]],
-    ['a frontmatter op and a body op', [
-      { op: 'replace', old_string: 'owner: Ana Nowak', new_string: 'owner: Bo Lin' },
-      { op: 'replace', old_string: 'None.', new_string: 'One problem.' },
-    ]],
-    ['a relates item that is not a URL', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: `relates: ${SPEC_URL}, plan.md` }]],
-    ['a replace that changes the key', [{ op: 'replace', old_string: 'owner: Ana Nowak', new_string: `relates: ${SPEC_URL}` }]],
-    ['a replace of every match', [{ op: 'replace', old_string: 'owner: Ana Nowak', new_string: 'owner: Bo Lin', replace_all: true }]],
-    ['a replace that deletes a line', [{ op: 'replace', old_string: `relates: ${SPEC_URL}`, new_string: '' }]],
-    ['an insert of two lines', [{ op: 'insert_after', anchor: 'owner: Ana Nowak', text: `\nrelates: ${SPEC_URL}\nowner: Bo` }]],
-    ['an insert at a body anchor', [{ op: 'insert_after', anchor: '## 7. Open problems', text: `\nrelates: ${SPEC_URL}` }]],
-    ['an append', [{ op: 'append', text: `\nrelates: ${SPEC_URL}` }]],
-    ['a prepend', [{ op: 'prepend', text: 'owner: Bo Lin\n' }]],
-    ['a replace_range', [{ op: 'replace_range', from: 'owner: Ana Nowak', to: '## 1.', new_string: 'owner: Bo Lin\n' }]],
-  ]) {
-    test(`a patch save with ${name} denies with no judge run`, () => {
-      const { result, judged } = patchSave(patch);
-      assert.deepEqual(result, { decision: 'deny', reason: PATCH_REASON, documents: [{ name: 'doc-1', decision: 'deny' }] });
-      assert.equal(judged, false);
-    });
-  }
-
-  test('a patch save in another shape denies and asks for the full content', () => {
-    assert.deepEqual(save({ id: 'doc-1', patch: [{ replace: { old_string: 'a', new_string: 'b' } }] }), {
-      decision: 'deny',
-      reason: PATCH_REASON,
-      documents: [{ name: 'doc-1', decision: 'deny' }],
-    });
-  });
-
-  test('a patch save with a title that is not a stage title denies', () => {
-    assert.equal(save({ id: 'doc-1', title: 'Meeting notes', patch: [] }).reason, PATCH_REASON);
-  });
-
-  test('a patch save with content too denies', () => {
-    assert.equal(save({ id: 'doc-1', content: INTENT, patch: [{ op: 'replace', old_string: 'owner: Ana Nowak', new_string: 'owner: Bo Lin' }] }).reason, PATCH_REASON);
+  test('a patch save with content too is gated by its content', () => {
+    const patch = [{ op: 'replace', old_string: 'owner: Ana Nowak', new_string: 'owner: Bo Lin' }];
+    assert.match(save({ id: 'doc-1', content: DASHED, patch }).reason, /^document-gate: the lint found these lines in doc-1:\n.*em-dash:/);
+    assert.equal(save({ id: 'doc-1', content: 'Meeting notes.', patch }).decision, 'allow');
   });
 
   test('a save of a document that is not a stage document allows with no judge run', () => {
@@ -969,14 +929,18 @@ describe('the hook process', () => {
   const run = (input, env = {}) =>
     spawnSync(process.execPath, [hookScript], { input: typeof input === 'string' ? input : JSON.stringify(input), encoding: 'utf8', env: { ...judgeEnv('pass'), ...env } });
 
+  // A stage title with no frontmatter denies with no judge run.
+  const NO_FRONTMATTER = { tool_name: SAVE, tool_input: { title: 'Intent: Weekly export', content: 'Notes.' } };
+  const NO_FRONTMATTER_REASON = noFrontmatterReason('Intent: Weekly export', 'intent');
+
   test('a denial prints the PreToolUse deny JSON and exits with 0', () => {
-    const r = run({ hook_event_name: 'PreToolUse', tool_name: SAVE, tool_input: { id: 'doc-1', patch: [] } });
+    const r = run({ hook_event_name: 'PreToolUse', ...NO_FRONTMATTER });
     assert.equal(r.status, 0);
     assert.equal(
       r.stdout,
-      `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":${JSON.stringify(PATCH_REASON)}}}\n`,
+      `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":${JSON.stringify(NO_FRONTMATTER_REASON)}}}\n`,
     );
-    assert.equal(r.stdout.trim(), denyOutput(PATCH_REASON));
+    assert.equal(r.stdout.trim(), denyOutput(NO_FRONTMATTER_REASON));
   });
 
   test('an allow prints nothing and exits with 0', () => {
@@ -989,11 +953,11 @@ describe('the hook process', () => {
     const link = join(tempDir(), 'plugin-link');
     symlinkSync(join(here, '..'), link);
     const r = spawnSync(process.execPath, [join(link, 'hooks', 'document-gate.mjs')], {
-      input: JSON.stringify({ tool_name: SAVE, tool_input: { id: 'doc-1', patch: [] } }),
+      input: JSON.stringify(NO_FRONTMATTER),
       encoding: 'utf8',
       env: judgeEnv('pass'),
     });
-    assert.equal(r.stdout.trim(), denyOutput(PATCH_REASON));
+    assert.equal(r.stdout.trim(), denyOutput(NO_FRONTMATTER_REASON));
   });
 
   test('with SDLC_KIT_GATE set, the hook exits at once with no output', () => {
