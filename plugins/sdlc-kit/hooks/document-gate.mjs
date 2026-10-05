@@ -76,6 +76,7 @@ export const VERDICT_SCHEMA = {
 // The stage types that live in Linear. The plan lives only in git, so a
 // Linear document of the type `plan` is not a stage document.
 const LINEAR_TYPES = ['intent', 'spec'];
+const STAGE_TYPES = ['intent', 'spec', 'plan'];
 const STAGE_PREFIX = /^(intent|spec):/i;
 const FILE_TYPES = { 'intent.md': 'intent', 'spec.md': 'spec', 'plan.md': 'plan' };
 
@@ -373,9 +374,8 @@ function parseGit(words, dir, assignments = []) {
     if (push.remote === null) push.remote = w;
     else push.refspecs.push(w);
   }
-  if (unresolvedDir !== undefined) return withDir(push, unresolvedDir);
-  const refspec = push.refspecs.find(isDynamic);
-  if (refspec !== undefined) push.unresolved = refspec;
+  const unresolved = unresolvedDir ?? push.refspecs.find(isDynamic);
+  if (unresolved !== undefined) push.unresolved = unresolved;
   return push;
 }
 
@@ -391,9 +391,9 @@ function parseGit(words, dir, assignments = []) {
  * - inside `$(...)` or backticks, and inside the string of `sh -c` or `eval`.
  * A `cd <dir>` moves the pushes after it in the chain, a substitution
  * included, until the subshell that holds the `cd` closes. A heredoc body is
- * skipped. A push gets `unresolved` when its directory, a refspec or the
- * program word holds `$` or a backtick, and `unknownDir` when the directory
- * holds it. The parser does not find a push inside
+ * skipped. A push gets `unresolved` when its directory or a refspec holds `$`
+ * or a backtick. The parser finds a push only when the program word is a
+ * literal `git`, so not in `$(which git) push`. It does not find a push inside
  * a script, a shell function, a git alias, `env -S`, a heredoc body, or after
  * an `export` of `GIT_DIR`.
  */
@@ -416,10 +416,7 @@ export function parsePush(command, cwd = process.cwd()) {
     const { words, assignments } = programWords(item.words);
     if (!words.length) continue;
     const program = basename(words[0]);
-    if (isDynamic(words[0])) {
-      // The shell picks the program at run time, as in `$(which git) push`.
-      if (words.includes('push')) pushes.push({ dir, global: [], remote: null, refspecs: [], delete: false, all: false, unresolved: words[0] });
-    } else if (program === 'cd') {
+    if (program === 'cd') {
       const target = words.slice(1).find((w) => !/^-[LPe@]+$/.test(w));
       if (target === undefined) dir = process.env.HOME ?? dir;
       else if (target === '-' || isDynamic(target)) dirUnresolved = target;
@@ -438,12 +435,13 @@ export function parsePush(command, cwd = process.cwd()) {
 }
 
 function withDir(push, dirUnresolved) {
-  return dirUnresolved === undefined || push.unknownDir ? push : { ...push, unresolved: dirUnresolved, unknownDir: true };
+  return dirUnresolved === undefined || push.unresolved !== undefined ? push : { ...push, unresolved: dirUnresolved };
 }
 
-function git(push, args, { allowFail = false } = {}) {
+function git(push, args, { allowFail = false, input } = {}) {
   const r = spawnSync('git', [...push.global, ...args], {
     cwd: push.dir,
+    input,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
     env: { ...process.env, ...push.env, GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0' },
@@ -491,7 +489,9 @@ function pushedRefs(push) {
  * fetch. A change that a merge commit makes itself counts too. When no
  * remote has a remote-tracking ref, as before a first push to an empty
  * remote, every commit is new, so the list holds every markdown file under
- * `.sdlc-kit/` at the local ref. Each document has `exists(name)`, which
+ * `.sdlc-kit/` at the local ref. A file with the same content at the same
+ * path on a remote-tracking ref is not listed, because a remote has it
+ * already. Each document has `exists(name)`, which
  * tells whether the file `name` is next to it at the pushed ref. Returns
  * null when the directory is not in a git repository.
  */
@@ -504,8 +504,10 @@ export function pushedDocuments(push) {
     const atLocal = new Set(
       git(inTop, ['ls-tree', '-r', '-z', '--name-only', '--full-tree', local, '--', STAGE_DIR]).split('\0').filter(Boolean),
     );
-    for (const path of changedPaths(inTop, local)) {
-      if (!atLocal.has(path) || !path.endsWith('.md')) continue;
+    const changed = changedPaths(inTop, local).filter((path) => atLocal.has(path) && path.endsWith('.md'));
+    const published = onRemote(inTop, local, changed);
+    for (const path of changed) {
+      if (published.has(path)) continue;
       documents.push({
         ref: local,
         path,
@@ -515,6 +517,21 @@ export function pushedDocuments(push) {
     }
   }
   return documents;
+}
+
+// The paths whose content at `local` is the same as at that path on a
+// remote-tracking ref, as after a rebase or an amend of commits that a
+// remote has.
+function onRemote(push, local, paths) {
+  const remotes = git(push, ['for-each-ref', '--format=%(refname)', 'refs/remotes']).split('\n').filter(Boolean);
+  // A newline in a path would split its line of the batch input, so such a
+  // path is always judged.
+  const asked = paths.filter((path) => !path.includes('\n'));
+  if (!remotes.length || !asked.length) return new Set();
+  const names = asked.flatMap((path) => [local, ...remotes].map((ref) => `${ref}:${path}`));
+  const ids = git(push, ['cat-file', '--batch-check=%(objectname)'], { input: `${names.join('\n')}\n` }).split('\n');
+  const width = remotes.length + 1;
+  return new Set(asked.filter((_, i) => ids.slice(i * width + 1, (i + 1) * width).includes(ids[i * width])));
 }
 
 const isDirectory = (dir) => existsSync(dir) && statSync(dir).isDirectory();
@@ -530,19 +547,6 @@ function atTop(push) {
   if (both === null && gitLine(push, ['rev-parse', '--git-dir']) === null) return null;
   const top = both?.split('\n')[1] ?? null;
   return top ? { ...push, dir: top } : push;
-}
-
-/**
- * Whether a commit of HEAD, a local branch or a tag that no remote-tracking
- * ref holds changes a file under `.sdlc-kit/`. Only such a commit can
- * publish a stage document, whatever the push sends. False when `push.dir`
- * is not in a git repository.
- */
-export function hasNewStageCommits(push) {
-  const inTop = atTop(push);
-  if (inTop === null) return false;
-  const refs = hasRef(inTop, 'HEAD') ? ['HEAD', '--branches', '--tags'] : ['--branches', '--tags'];
-  return git(inTop, ['log', '-1', '--format=%H', ...refs, '--not', '--remotes', '--', STAGE_DIR]).trim() !== '';
 }
 
 // The paths under `.sdlc-kit/` that the commits of `local` change, in path
@@ -694,14 +698,6 @@ export function outOfTimeReason(name) {
   return `document-gate: the gate ran out of time before it judged ${name}. Push fewer changed documents at a time. When only one document changed, repeat the call.`;
 }
 
-export function unresolvedReason(word) {
-  return `document-gate: the gate cannot read the value "${word}" in this push, because the shell sets it at run time. Repeat the push with a literal value in its place.`;
-}
-
-export function missingDirReason(dir) {
-  return `document-gate: the directory ${dir} of this push does not exist. Repeat the push with the literal path of the repository.`;
-}
-
 /**
  * Decides one PreToolUse call. Returns {decision, reason, documents}, where
  * `documents` lists the name and the decision of each gated document.
@@ -720,7 +716,7 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
     const declared = frontmatterType(stripBom(toolInput.content));
     const { fromTitle, fromHeading } = namedTypes(toolInput);
     if (!declared && (fromTitle || fromHeading)) return denied(noFrontmatterReason(name, fromTitle ?? fromHeading));
-    if (declared && fromTitle && declared !== fromTitle) return denied(typeMismatchReason(toolInput.title.trim(), fromTitle, declared));
+    if (STAGE_TYPES.includes(declared) && fromTitle && declared !== fromTitle) return denied(typeMismatchReason(toolInput.title.trim(), fromTitle, declared));
     const type = documentType({ content: toolInput.content });
     if (type === null) return { decision: 'allow', documents: [{ name, decision: 'allow' }] };
     const result = gate(toolInput.content, { type, form: 'linear', name, ...limits });
@@ -728,18 +724,10 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
   }
   if (tool === 'Bash') {
     const documents = [];
-    const cwd = input.cwd ?? process.cwd();
-    for (const push of parsePush(toolInput.command, cwd)) {
-      const knownDir = !push.unknownDir && isDirectory(push.dir);
-      if (push.unresolved !== undefined || !knownDir) {
-        // The gate cannot list the documents of this push. It denies only
-        // when the repository holds new commits under `.sdlc-kit/`. When the
-        // directory of the push is unknown, the gate looks at the repository
-        // of the working directory, where the shell stays after a failed cd.
-        if (!hasNewStageCommits(knownDir ? push : { dir: cwd, global: [] })) continue;
-        const [name, reason] = push.unresolved !== undefined ? [push.unresolved, unresolvedReason(push.unresolved)] : [push.dir, missingDirReason(push.dir)];
-        return { decision: 'deny', reason, documents: [{ name, decision: 'deny' }] };
-      }
+    for (const push of parsePush(toolInput.command, input.cwd ?? process.cwd())) {
+      // The skills push with a plain `git push`, which the gate can always
+      // list, so a push that it cannot list is not a push of a skill.
+      if (push.unresolved !== undefined) continue;
       const pushed = pushedDocuments(push);
       if (pushed === null) continue;
       for (const doc of pushed) {
