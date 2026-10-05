@@ -10,7 +10,7 @@ The intent says what problem exists, who has it, and what outcome we want. Its r
 
 ## Before you start
 
-1. Read the file `${CLAUDE_PLUGIN_ROOT}/skills/writing/SKILL.md` with the Read tool. Its rules govern the document and every comment that you post.
+1. Read the file `${CLAUDE_PLUGIN_ROOT}/skills/writing/SKILL.md` with the Read tool. Its rules govern the document.
 2. Read the file `${CLAUDE_PLUGIN_ROOT}/skills/intent/template.md` with the Read tool. The document uses its headings, in its order, with its numbers. You may add a subsection under a heading. Do not add a top-level heading.
 
 ## Retry
@@ -37,7 +37,7 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
    - Keep the frontmatter of the template at the top, between the `---` lines, with the fields `type` and `owner`. Remove its `relates` line. The spec skill and the plan skill add the field later.
    - Set `owner` to the name of the owner.
    - Write the name of the intent in the title line `# Intent: <name>`.
-   - Give each open problem a number and an owner note in the form of the writing rules.
+   - Put each open problem under "7. Open problems". Give it a number and an owner note in the form of the writing rules. The section is the only record of the open problems. Do not post a comment for them.
 5. Remove the title line and the blank line after it from the draft. Keep the title `Intent: <name>` for the save. Linear shows the title of the document above the content, so the content has no title line.
 6. Run the lint on the draft:
 
@@ -53,8 +53,7 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
    - Put the draft in `content` as markdown, with its frontmatter.
 
    The gate of the plugin runs on the save. When it denies the save, follow the retry rule above.
-9. Post one comment for each open problem with the `save_comment` tool. Pass the `documentId` of the document. Address each comment to the owner of the problem with an @mention. Each comment follows the writing rules.
-10. Give the owner the URL of the document.
+9. Give the owner the URL of the document.
 
 ## After the save
 

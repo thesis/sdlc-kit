@@ -4,7 +4,7 @@ thesis/sdlc-kit holds the components of the AI-native software development proce
 
 ## Claude plugin
 
-The `sdlc-kit` plugin gives Claude the skills, the document templates and the writing rules for the intent, the spec and the plan. Claude writes the intent and the spec as Linear documents, in the template of the plugin. It opens one comment thread per open problem or decision on them. Claude writes the plan in a pull request in the repository where the feature lands.
+The `sdlc-kit` plugin gives Claude the skills, the document templates and the writing rules for the intent, the spec and the plan. Claude writes the intent and the spec as Linear documents, in the template of the plugin. Each open problem or decision is a numbered item in its section of the document, with its owner. Claude writes the plan in a pull request in the repository where the feature lands.
 
 ### Install
 
@@ -50,10 +50,10 @@ claude plugin update sdlc-kit@thesis-sdlc-kit
 
 A stage of work starts with an intent, continues with a spec and ends with the build of the plan. You decide when a document is ready for the next command. Each document starts with a frontmatter of fields, such as `owner` and `relates`. The skills keep these fields. Do not edit the frontmatter by hand.
 
-1. Run `/sdlc-kit:intent`. Answer the questions, one at a time. Say "unknown" when you do not know. You get a Linear document `Intent: <name>`, with one comment per open problem, addressed to the person who can answer it.
-2. Settle each open problem in its comment thread. Write the answer into the intent, then resolve the thread. A problem with no answer yet goes to the spec.
-3. Run `/sdlc-kit:spec <Linear URL of the intent>`. When a spec of the intent exists, the command asks you what to do. Confirm the list of open problems and decisions that Claude shows you. Answer the questions that its research cannot settle. You get a Linear document `Spec: <name>`, linked to the intent, with one comment per open decision.
-4. Settle each open decision in its comment thread. Write the decision into the spec, then resolve the thread.
+1. Run `/sdlc-kit:intent`. Answer the questions, one at a time. Say "unknown" when you do not know. You get a Linear document `Intent: <name>`. Its section "7. Open problems" lists each open problem with the person who can answer it.
+2. Settle each open problem with its owner. Write the answer into the intent. A problem with no answer yet goes to the spec.
+3. Run `/sdlc-kit:spec <Linear URL of the intent>`. When a spec of the intent exists, the command asks you what to do. Confirm the list of open problems and decisions that Claude shows you. Answer the questions that its research cannot settle. You get a Linear document `Spec: <name>`, linked to the intent. Its section "10. Open decisions" lists each open decision with its owner and date.
+4. Settle each open decision with its owner. Write the decision into the spec.
 5. Run `/sdlc-kit:plan <Linear URL of the spec>` in a checkout of the repository where the feature lands. When a plan of the spec exists, the command asks you what to do. Accept or change the name of the stage directory, `.sdlc-kit/YYYY-MM-<slug>/`. Answer the questions about the repository, such as the CI gates and stacked pull requests. You get a pull request with the intent, the spec and the plan, ready for review. From here, git holds the intent and the spec.
 6. Review the shape of the plan, not each line, and merge it. Build each phase in its own pull request. Edit the plan only when the work finds something unexpected that changes it. When the last phase merges, the stage is done.
 

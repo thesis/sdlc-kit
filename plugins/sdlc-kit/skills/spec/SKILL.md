@@ -15,7 +15,7 @@ The owner decides when the intent is ready for the spec. The skill reports the o
 
 ## Before you start
 
-1. Read the file `${CLAUDE_PLUGIN_ROOT}/skills/writing/SKILL.md` with the Read tool. Its rules govern the document and every comment that you post.
+1. Read the file `${CLAUDE_PLUGIN_ROOT}/skills/writing/SKILL.md` with the Read tool. Its rules govern the document.
 2. Read the file `${CLAUDE_PLUGIN_ROOT}/skills/spec/template.md` with the Read tool. The document uses its headings, in its order, with its numbers. You may add a subsection under a heading. Do not add a top-level heading.
 
 ## Retry
@@ -48,7 +48,7 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
     - Keep the frontmatter of the template at the top, between the `---` lines, with the fields `type`, `owner` and `relates`.
     - Set `owner` to the name of the owner and `relates` to the URL of the intent only.
     - Write the name of the spec in the title line `# Spec: <name>`.
-    - Give each open decision a number and an owner note with the owner and the date, in the form of the writing rules.
+    - Put each open decision under "10. Open decisions". Give it a number and an owner note with the owner and the date, in the form of the writing rules. The section is the only record of the open decisions. Do not post a comment for them.
     - In "11. Intent open problems, answered", give each open problem of the intent an answer or an owner note.
     - Refer to a section of the intent in the cross-reference form of the writing rules.
 
@@ -74,8 +74,7 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
 
     The gate of the plugin runs on the save. When it denies the save, follow the retry rule above.
 13. Link the spec from the intent. Call the `save_document` tool with the `id` of the intent and this `patch`, and no `content`. When the intent has no `relates` field, the patch is one `insert_after` op with `anchor` the `owner` line of the intent and `text` `\nrelates: <spec URL>`. When the intent has a `relates` field, the patch is one `replace` op with `old_string` that line and `new_string` the same line with `, <spec URL>` at its end. Copy the anchor or the old line from the scratch file of the intent. The save is best effort. When it fails, tell the owner that the intent does not link the spec. Then go on.
-14. Post one comment for each open decision with the `save_comment` tool. Pass the `documentId` of the spec. Address each comment to the owner of the decision with an @mention. Each comment follows the writing rules.
-15. Give the owner the URL of the spec.
+14. Give the owner the URL of the spec.
 
 ## After the save
 
