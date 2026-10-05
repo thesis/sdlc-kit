@@ -24,10 +24,10 @@ function templateText(type) {
 
 const SECTION_TEXT = {
   'Executive summary': '- The vault pays lenders a fixed rate.\n- We ask for a decision on the launch date.',
-  'Open problems': '1. The rate after the first term is unknown. Owner: Ana.',
+  'Open problems': '1. The rate after the first term is unknown. (Owner: Ana Nowak)',
   Requirements: '- R1: A lender can withdraw at any time.\n- R2: The page shows the rate.',
   Risks: '1. A large withdrawal can empty the buffer. Response: monitoring refills it.',
-  'Open decisions': '1. The launch date. Owner: Ana Nowak. Date: 2026-10-15.',
+  'Open decisions': '1. The launch date. (Owner: Ana Nowak, date: 2026-10-15)',
 };
 
 const INTENT_URL = 'https://linear.app/thesis/document/intent-1';
@@ -295,7 +295,7 @@ describe('structure', () => {
   });
 
   test('open problems that say "None." pass', () => {
-    const text = intent.replace('1. The rate after the first term is unknown. Owner: Ana.', 'None.');
+    const text = intent.replace('1. The rate after the first term is unknown. (Owner: Ana Nowak)', 'None.');
     assert.deepEqual(rules(text, 'intent'), []);
   });
 
@@ -355,10 +355,10 @@ describe('structure', () => {
 
 
   test('one open problem with no number among numbered ones fails', () => {
-    const text = intent.replace(SECTION_TEXT['Open problems'], `${SECTION_TEXT['Open problems']}\n- The fee is unknown. Owner: Bo.`);
+    const text = intent.replace(SECTION_TEXT['Open problems'], `${SECTION_TEXT['Open problems']}\n- The fee is unknown. (Owner: Bo Lee)`);
     const found = lintText(text, { type: 'intent' });
     assert.deepEqual(found.map((f) => f.rule), ['structure-numbered-items']);
-    assert.equal(text.split('\n')[found[0].line - 1], '- The fee is unknown. Owner: Bo.');
+    assert.equal(text.split('\n')[found[0].line - 1], '- The fee is unknown. (Owner: Bo Lee)');
   });
 
   test('a sub-item under a numbered open problem passes', () => {
