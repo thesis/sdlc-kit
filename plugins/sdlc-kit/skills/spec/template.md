@@ -34,10 +34,10 @@ relates: <intent URL>, <plan PR URL>
 <!-- Numbered: 1., 2., ... Each risk is a failure mode we accept, with its response. "Accepted, no action" is a valid response. -->
 
 ## 10. Open decisions
-<!-- Numbered: 1., 2., ... Each open decision has an owner and a date. Write "None." when no open decision is left. -->
+<!-- Numbered: 1., 2., ... Each open decision names its owner and its date in an owner note: "(Owner: <name>, date: <date>)". Write "None." when no open decision is left. -->
 
 ## 11. Intent open problems, answered
-<!-- Each open problem of the intent, with its answer or its owner. -->
+<!-- Each open problem of the intent, with its answer or its owner note: "(Owner: <name>)". -->
 
 <!--
 Not here: function signatures, storage, deploy scripts, test names and script CLIs. Those belong in the plan.

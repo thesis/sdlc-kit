@@ -29,7 +29,7 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
    6. the constraints;
    7. what nobody knows yet.
 
-   Stop the questions about a section when it has one concrete answer. Also stop when the owner says "unknown". An unknown answer becomes an open problem. When the owner gives a number with no measurement, ask who gives the estimate. Write the number with the source `Source: an estimate of <name>.`
+   Stop the questions about a section when it has one concrete answer. Also stop when the owner says "unknown". An unknown answer becomes an open problem. When the owner gives a number with no measurement, ask who gives the estimate. Write the number with the source note `(Source: an estimate of <name>)` after its sentence.
 3. Push back on solution talk. When the owner names a contract function, a file or a parameter, ask what outcome it serves. Write down that outcome. Write the named detail under "6. Constraints" only when it is a real constraint.
 4. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
    - Fill every section of the template.
@@ -37,7 +37,7 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
    - Keep the frontmatter of the template at the top, between the `---` lines, with the fields `type` and `owner`. Remove its `relates` line. The spec skill and the plan skill add the field later.
    - Set `owner` to the name of the owner.
    - Write the name of the intent in the title line `# Intent: <name>`.
-   - Give each open problem a number and an owner.
+   - Give each open problem a number and an owner note in the form of the writing rules.
 5. Remove the title line and the blank line after it from the draft. Keep the title `Intent: <name>` for the save. Linear shows the title of the document above the content, so the content has no title line.
 6. Run the lint on the draft:
 

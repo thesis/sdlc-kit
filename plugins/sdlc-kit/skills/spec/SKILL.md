@@ -48,8 +48,8 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
     - Keep the frontmatter of the template at the top, between the `---` lines, with the fields `type`, `owner` and `relates`.
     - Set `owner` to the name of the owner and `relates` to the URL of the intent only.
     - Write the name of the spec in the title line `# Spec: <name>`.
-    - Give each open decision a number, an owner and a date.
-    - In "11. Intent open problems, answered", give each open problem of the intent an answer or an owner.
+    - Give each open decision a number and an owner note with the owner and the date, in the form of the writing rules.
+    - In "11. Intent open problems, answered", give each open problem of the intent an answer or an owner note.
     - Refer to a section of the intent in the cross-reference form of the writing rules.
 
     Write at the spec altitude:
