@@ -330,12 +330,12 @@ function expandHome(path) {
 function parseGit(words, dir, assignments = []) {
   const global = [];
   const env = {};
-  let unresolved;
+  let unresolvedDir;
   for (const a of assignments) {
     const name = a.slice(0, a.indexOf('='));
     const value = a.slice(a.indexOf('=') + 1);
     if (!GIT_REPOSITORY_VARIABLES.includes(name)) continue;
-    if (isDynamic(value)) unresolved ??= value;
+    if (isDynamic(value)) unresolvedDir ??= value;
     env[name] = resolve(dir, expandHome(value));
   }
   let i = 1;
@@ -346,7 +346,7 @@ function parseGit(words, dir, assignments = []) {
     if (!GIT_OPTIONS_WITH_VALUE.has(name)) continue;
     const value = inline ?? words[++i];
     if (value === undefined) return null;
-    if ((name === '-C' || name === '--git-dir' || name === '--work-tree') && isDynamic(value)) unresolved ??= value;
+    if ((name === '-C' || name === '--git-dir' || name === '--work-tree') && isDynamic(value)) unresolvedDir ??= value;
     if (name === '-C') dir = resolve(dir, expandHome(value));
     else if (name === '--git-dir' || name === '--work-tree') global.push(`${name}=${resolve(dir, expandHome(value))}`);
     else if (name === '-c') global.push('-c', value);
@@ -373,8 +373,9 @@ function parseGit(words, dir, assignments = []) {
     if (push.remote === null) push.remote = w;
     else push.refspecs.push(w);
   }
-  unresolved ??= push.refspecs.find(isDynamic);
-  if (unresolved !== undefined) push.unresolved = unresolved;
+  if (unresolvedDir !== undefined) return withDir(push, unresolvedDir);
+  const refspec = push.refspecs.find(isDynamic);
+  if (refspec !== undefined) push.unresolved = refspec;
   return push;
 }
 
@@ -391,7 +392,8 @@ function parseGit(words, dir, assignments = []) {
  * A `cd <dir>` moves the pushes after it in the chain, a substitution
  * included, until the subshell that holds the `cd` closes. A heredoc body is
  * skipped. A push gets `unresolved` when its directory, a refspec or the
- * program word holds `$` or a backtick. The parser does not find a push inside
+ * program word holds `$` or a backtick, and `unknownDir` when the directory
+ * holds it. The parser does not find a push inside
  * a script, a shell function, a git alias, `env -S`, a heredoc body, or after
  * an `export` of `GIT_DIR`.
  */
@@ -436,7 +438,7 @@ export function parsePush(command, cwd = process.cwd()) {
 }
 
 function withDir(push, dirUnresolved) {
-  return dirUnresolved === undefined || push.unresolved !== undefined ? push : { ...push, unresolved: dirUnresolved };
+  return dirUnresolved === undefined || push.unknownDir ? push : { ...push, unresolved: dirUnresolved, unknownDir: true };
 }
 
 function git(push, args, { allowFail = false } = {}) {
@@ -460,7 +462,7 @@ function hasRef(push, ref) {
   return git(push, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], { allowFail: true }) !== null;
 }
 
-/** Lists the local refs that a push sends. */
+/** Lists the local refs that a push sends and that exist. */
 function pushedRefs(push) {
   let specs = push.refspecs;
   if (push.all) {
@@ -473,8 +475,10 @@ function pushedRefs(push) {
     const plain = spec.replace(/^\+/, '');
     const src = plain.includes(':') ? plain.slice(0, plain.indexOf(':')) : plain;
     if (!src) continue;
-    if (!hasRef(push, src)) throw new Error(`the local ref "${src}" does not exist`);
-    refs.push(src);
+    // A `*` in a refspec matches refs the way `for-each-ref` matches them.
+    if (src.includes('*')) refs.push(...git(push, ['for-each-ref', '--format=%(refname)', src]).split('\n').filter(Boolean));
+    // git itself stops a push of a local ref that does not exist.
+    else if (hasRef(push, src)) refs.push(src);
   }
   return refs;
 }
@@ -492,14 +496,9 @@ function pushedRefs(push) {
  * null when the directory is not in a git repository.
  */
 export function pushedDocuments(push) {
-  if (!existsSync(push.dir) || !statSync(push.dir).isDirectory()) return null;
-  // One call gives the git dir and the top. It fails outside a work tree,
-  // such as in a bare repository, and then the git dir alone decides.
-  const both = gitLine(push, ['rev-parse', '--git-dir', '--show-toplevel']);
-  if (both === null && gitLine(push, ['rev-parse', '--git-dir']) === null) return null;
+  const inTop = atTop(push);
+  if (inTop === null) return null;
   if (push.delete) return [];
-  const top = both?.split('\n')[1] ?? null;
-  const inTop = top ? { ...push, dir: top } : push;
   const documents = [];
   for (const local of pushedRefs(inTop)) {
     const atLocal = new Set(
@@ -516,6 +515,34 @@ export function pushedDocuments(push) {
     }
   }
   return documents;
+}
+
+const isDirectory = (dir) => existsSync(dir) && statSync(dir).isDirectory();
+
+// The push with `dir` set to the top of its work tree, so that the path
+// `.sdlc-kit` names the stage directory. Null when `dir` is not in a git
+// repository.
+function atTop(push) {
+  if (!isDirectory(push.dir)) return null;
+  // One call gives the git dir and the top. It fails outside a work tree,
+  // such as in a bare repository, and then the git dir alone decides.
+  const both = gitLine(push, ['rev-parse', '--git-dir', '--show-toplevel']);
+  if (both === null && gitLine(push, ['rev-parse', '--git-dir']) === null) return null;
+  const top = both?.split('\n')[1] ?? null;
+  return top ? { ...push, dir: top } : push;
+}
+
+/**
+ * Whether a commit of HEAD, a local branch or a tag that no remote-tracking
+ * ref holds changes a file under `.sdlc-kit/`. Only such a commit can
+ * publish a stage document, whatever the push sends. False when `push.dir`
+ * is not in a git repository.
+ */
+export function hasNewStageCommits(push) {
+  const inTop = atTop(push);
+  if (inTop === null) return false;
+  const refs = hasRef(inTop, 'HEAD') ? ['HEAD', '--branches', '--tags'] : ['--branches', '--tags'];
+  return git(inTop, ['log', '-1', '--format=%H', ...refs, '--not', '--remotes', '--', STAGE_DIR]).trim() !== '';
 }
 
 // The paths under `.sdlc-kit/` that the commits of `local` change, in path
@@ -701,12 +728,17 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
   }
   if (tool === 'Bash') {
     const documents = [];
-    for (const push of parsePush(toolInput.command, input.cwd ?? process.cwd())) {
-      if (push.unresolved !== undefined) {
-        return { decision: 'deny', reason: unresolvedReason(push.unresolved), documents: [{ name: push.unresolved, decision: 'deny' }] };
-      }
-      if (!existsSync(push.dir) || !statSync(push.dir).isDirectory()) {
-        return { decision: 'deny', reason: missingDirReason(push.dir), documents: [{ name: push.dir, decision: 'deny' }] };
+    const cwd = input.cwd ?? process.cwd();
+    for (const push of parsePush(toolInput.command, cwd)) {
+      const knownDir = !push.unknownDir && isDirectory(push.dir);
+      if (push.unresolved !== undefined || !knownDir) {
+        // The gate cannot list the documents of this push. It denies only
+        // when the repository holds new commits under `.sdlc-kit/`. When the
+        // directory of the push is unknown, the gate looks at the repository
+        // of the working directory, where the shell stays after a failed cd.
+        if (!hasNewStageCommits(knownDir ? push : { dir: cwd, global: [] })) continue;
+        const [name, reason] = push.unresolved !== undefined ? [push.unresolved, unresolvedReason(push.unresolved)] : [push.dir, missingDirReason(push.dir)];
+        return { decision: 'deny', reason, documents: [{ name, decision: 'deny' }] };
       }
       const pushed = pushedDocuments(push);
       if (pushed === null) continue;

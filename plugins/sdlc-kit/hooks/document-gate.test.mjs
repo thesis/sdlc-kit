@@ -227,11 +227,11 @@ describe('parsePush', () => {
     ['xargs -n 1 git push origin', [push({ remote: 'origin' })]],
     ['eval "git push origin main"', [push({ remote: 'origin', refspecs: ['main'] })]],
     ['git -C ~/repo push', [push({ dir: join(process.env.HOME, 'repo') })]],
-    ['git -C "$REPO" push', [push({ dir: '/work/$REPO', unresolved: '$REPO' })]],
-    ['git -C ${REPO} push', [push({ dir: '/work/${REPO}', unresolved: '${REPO}' })]],
-    ['git -C $(pwd) push', [push({ dir: '/work/$SUBST', unresolved: '$SUBST' })]],
-    ['cd "$DIR" && git push', [push({ unresolved: '$DIR' })]],
-    ['cd - && git push', [push({ unresolved: '-' })]],
+    ['git -C "$REPO" push', [push({ dir: '/work/$REPO', unresolved: '$REPO', unknownDir: true })]],
+    ['git -C ${REPO} push', [push({ dir: '/work/${REPO}', unresolved: '${REPO}', unknownDir: true })]],
+    ['git -C $(pwd) push', [push({ dir: '/work/$SUBST', unresolved: '$SUBST', unknownDir: true })]],
+    ['cd "$DIR" && git push', [push({ unresolved: '$DIR', unknownDir: true })]],
+    ['cd - && git push', [push({ unresolved: '-', unknownDir: true })]],
     ['git push origin $BRANCH', [push({ remote: 'origin', refspecs: ['$BRANCH'], unresolved: '$BRANCH' })]],
     ['git push origin main 2>&1', [push({ remote: 'origin', refspecs: ['main'] })]],
     ['git push origin main 2>&1 | tail -3', [push({ remote: 'origin', refspecs: ['main'] })]],
@@ -250,12 +250,12 @@ describe('parsePush', () => {
     ['cd a; x=`git push`', [push({ dir: '/work/a' })]],
     ['cd a && echo "$(git push)"', [push({ dir: '/work/a' })]],
     ['(cd a; x=$(git push)); git push', [push({ dir: '/work/a' }), push({})]],
-    ['cd "$DIR" && x=$(git push)', [push({ unresolved: '$DIR' })]],
+    ['cd "$DIR" && x=$(git push)', [push({ unresolved: '$DIR', unknownDir: true })]],
     ['$(which git) push', [push({ unresolved: '$SUBST' })]],
     ['$GIT push origin main', [push({ unresolved: '$GIT' })]],
     ['GIT_DIR=/x/.git git push', [{ ...push({}), env: { GIT_DIR: '/x/.git' } }]],
     ['env GIT_WORK_TREE=tree git push', [{ ...push({}), env: { GIT_WORK_TREE: '/work/tree' } }]],
-    ['GIT_DIR=$X git push', [{ ...push({ unresolved: '$X' }), env: { GIT_DIR: '/work/$X' } }]],
+    ['GIT_DIR=$X git push', [{ ...push({ unresolved: '$X', unknownDir: true }), env: { GIT_DIR: '/work/$X' } }]],
     ['git push origin a && git -C /y push origin b', [push({ remote: 'origin', refspecs: ['a'] }), push({ dir: '/y', remote: 'origin', refspecs: ['b'] })]],
   ]) {
     test(`finds the push in: ${command}`, () => {
@@ -415,8 +415,18 @@ describe('pushedDocuments', () => {
     assert.deepEqual(pushedPaths('cd missing && git push', root), ['<not a repository>']);
   });
 
-  test('a local ref that does not exist throws', () => {
-    assert.throws(() => pushedPaths('git push origin nothing', work), /the local ref "nothing" does not exist/);
+  test('a refspec with a * lists the files of each matching branch', () => {
+    sh(work, 'checkout', '-q', '-b', 'glob');
+    write(work, '.sdlc-kit/2026-09-glob/plan.md', '# Plan: Weekly export\n');
+    sh(work, 'add', '-A');
+    sh(work, 'commit', '-qm', 'Add a plan on a branch');
+    sh(work, 'checkout', '-q', 'main');
+    assert.ok(pushedPaths("git push origin 'refs/heads/*:refs/heads/*'", work).includes('.sdlc-kit/2026-09-glob/plan.md'));
+    assert.ok(!pushedPaths("git push origin 'refs/heads/main*:refs/heads/main*'", work).includes('.sdlc-kit/2026-09-glob/plan.md'));
+  });
+
+  test('a local ref that does not exist lists nothing', () => {
+    assert.deepEqual(pushedPaths('git push origin nothing', work), []);
   });
 });
 
@@ -822,6 +832,38 @@ describe('decide', () => {
     }
   });
 
+  describe('a push that the gate cannot list, or that sends no ref', () => {
+    const bash = (command, cwd) => decide({ tool_name: 'Bash', cwd, tool_input: { command } }, { env: judgeEnv('fail') });
+    const commands = ['git -C "$REPO" push', 'git push origin "$BRANCH"', 'git -C missing push', 'cd missing; git push', '$(which git) push origin HEAD', 'git push origin nothing', "git push origin 'refs/heads/*:refs/heads/*'"];
+
+    test('in a repository with no stage directory allows', () => {
+      const plain = tempDir('sdlc-kit-plain-');
+      sh(plain, 'init', '-q', '-b', 'main');
+      write(plain, 'README.md', 'A repository.\n');
+      sh(plain, 'add', '-A');
+      sh(plain, 'commit', '-m', 'Add the README');
+      for (const command of commands) assert.deepEqual(bash(command, plain), { decision: 'allow', documents: [] }, command);
+    });
+
+    test('in a repository whose stage commits are all on the remote allows', () => {
+      const { work } = repository();
+      sh(work, 'push', '-q', 'origin', 'main');
+      write(work, 'README.md', 'A changed repository.\n');
+      sh(work, 'commit', '-qam', 'Change the README');
+      for (const command of commands) assert.deepEqual(bash(command, work), { decision: 'allow', documents: [] }, command);
+    });
+
+    test('with a new stage commit on a branch that is not checked out denies', () => {
+      const { work } = repository();
+      sh(work, 'push', '-q', 'origin', 'main');
+      sh(work, 'checkout', '-q', '-b', 'feat');
+      write(work, '.sdlc-kit/2026-09-probe/spec.md', '# Spec: Weekly export, second version\n');
+      sh(work, 'commit', '-qam', 'Change the spec');
+      sh(work, 'checkout', '-q', 'main');
+      assert.equal(bash('git push origin "$BRANCH"', work).reason, unresolvedReason('$BRANCH'));
+    });
+  });
+
   describe('a push', () => {
     const { root, work } = repository();
     write(work, '.sdlc-kit/2026-09-probe/spec.md', GIT_SPEC);
@@ -871,7 +913,11 @@ describe('decide', () => {
     });
 
     test('a push after a cd to a directory that does not exist denies', () => {
-      assert.equal(bash('cd missing && git push', root).reason, missingDirReason(join(root, 'missing')));
+      assert.equal(bash('cd missing; git push').reason, missingDirReason(join(work, 'missing')));
+    });
+
+    test('a push with a refspec that the shell sets denies', () => {
+      assert.equal(bash('git push origin "$BRANCH"').reason, unresolvedReason('$BRANCH'));
     });
 
     test('the judge runs of one push share one budget', () => {
