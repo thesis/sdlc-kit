@@ -1,6 +1,6 @@
 {
   "name": "sdlc-kit",
-  "version": "0.4.8",
+  "version": "1.0.0",
   "description": "Guides each change through the AI-native SDLC, so AI does the routine work and people make the decisions.",
   "author": {
     "name": "Thesis"
