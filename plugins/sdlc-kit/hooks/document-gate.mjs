@@ -374,9 +374,8 @@ function parseGit(words, dir, assignments = []) {
     if (push.remote === null) push.remote = w;
     else push.refspecs.push(w);
   }
-  if (unresolvedDir !== undefined) return withDir(push, unresolvedDir);
-  const refspec = push.refspecs.find(isDynamic);
-  if (refspec !== undefined) push.unresolved = refspec;
+  const unresolved = unresolvedDir ?? push.refspecs.find(isDynamic);
+  if (unresolved !== undefined) push.unresolved = unresolved;
   return push;
 }
 
@@ -393,8 +392,7 @@ function parseGit(words, dir, assignments = []) {
  * A `cd <dir>` moves the pushes after it in the chain, a substitution
  * included, until the subshell that holds the `cd` closes. A heredoc body is
  * skipped. A push gets `unresolved` when its directory, a refspec or the
- * program word holds `$` or a backtick, and `unknownDir` when the directory
- * holds it. The parser does not find a push inside
+ * program word holds `$` or a backtick. The parser does not find a push inside
  * a script, a shell function, a git alias, `env -S`, a heredoc body, or after
  * an `export` of `GIT_DIR`.
  */
@@ -439,7 +437,7 @@ export function parsePush(command, cwd = process.cwd()) {
 }
 
 function withDir(push, dirUnresolved) {
-  return dirUnresolved === undefined || push.unknownDir ? push : { ...push, unresolved: dirUnresolved, unknownDir: true };
+  return dirUnresolved === undefined || push.unresolved !== undefined ? push : { ...push, unresolved: dirUnresolved };
 }
 
 function git(push, args, { allowFail = false } = {}) {
@@ -531,19 +529,6 @@ function atTop(push) {
   if (both === null && gitLine(push, ['rev-parse', '--git-dir']) === null) return null;
   const top = both?.split('\n')[1] ?? null;
   return top ? { ...push, dir: top } : push;
-}
-
-/**
- * Whether a commit of HEAD, a local branch or a tag that no remote-tracking
- * ref holds changes a file under `.sdlc-kit/`. Only such a commit can
- * publish a stage document, whatever the push sends. False when `push.dir`
- * is not in a git repository.
- */
-export function hasNewStageCommits(push) {
-  const inTop = atTop(push);
-  if (inTop === null) return false;
-  const refs = hasRef(inTop, 'HEAD') ? ['HEAD', '--branches', '--tags'] : ['--branches', '--tags'];
-  return git(inTop, ['log', '-1', '--format=%H', ...refs, '--not', '--remotes', '--', STAGE_DIR]).trim() !== '';
 }
 
 // The paths under `.sdlc-kit/` that the commits of `local` change, in path
@@ -695,14 +680,6 @@ export function outOfTimeReason(name) {
   return `document-gate: the gate ran out of time before it judged ${name}. Push fewer changed documents at a time. When only one document changed, repeat the call.`;
 }
 
-export function unresolvedReason(word) {
-  return `document-gate: the gate cannot read the value "${word}" in this push, because the shell sets it at run time. Repeat the push with a literal value in its place.`;
-}
-
-export function missingDirReason(dir) {
-  return `document-gate: the directory ${dir} of this push does not exist. Repeat the push with the literal path of the repository.`;
-}
-
 /**
  * Decides one PreToolUse call. Returns {decision, reason, documents}, where
  * `documents` lists the name and the decision of each gated document.
@@ -729,18 +706,10 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
   }
   if (tool === 'Bash') {
     const documents = [];
-    const cwd = input.cwd ?? process.cwd();
-    for (const push of parsePush(toolInput.command, cwd)) {
-      const knownDir = !push.unknownDir && isDirectory(push.dir);
-      if (push.unresolved !== undefined || !knownDir) {
-        // The gate cannot list the documents of this push. It denies only
-        // when the repository holds new commits under `.sdlc-kit/`. When the
-        // directory of the push is unknown, the gate looks at the repository
-        // of the working directory, where the shell stays after a failed cd.
-        if (!hasNewStageCommits(knownDir ? push : { dir: cwd, global: [] })) continue;
-        const [name, reason] = push.unresolved !== undefined ? [push.unresolved, unresolvedReason(push.unresolved)] : [push.dir, missingDirReason(push.dir)];
-        return { decision: 'deny', reason, documents: [{ name, decision: 'deny' }] };
-      }
+    for (const push of parsePush(toolInput.command, input.cwd ?? process.cwd())) {
+      // The skills push with a plain `git push`, which the gate can always
+      // list, so a push that it cannot list is not a push of a skill.
+      if (push.unresolved !== undefined) continue;
       const pushed = pushedDocuments(push);
       if (pushed === null) continue;
       for (const doc of pushed) {
