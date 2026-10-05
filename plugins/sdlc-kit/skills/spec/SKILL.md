@@ -11,7 +11,7 @@ The spec says how the functionality works, at a level that business, product and
 
 The input is the Linear URL of the intent: $ARGUMENTS
 
-The owner decides when the intent is ready for the spec. The skill reports the open threads of the intent and goes on. After the save of the spec, the skill adds the URL of the spec to the `relates` field of the intent. That change is a patch save, and it is best effort. A patch save holds only `replace`, `insert_before` or `insert_after` ops, and each op writes one `key: value` line of the frontmatter. The gate allows such a patch with no lint and no judge run.
+The owner decides when the intent is ready for the spec. The skill reports the open threads of the intent and goes on. After the save of the spec, the skill adds the URL of the spec to the `relates` field of the intent. That change is a patch save, and it is best effort. A patch save holds only `replace`, `insert_before` or `insert_after` ops, and each op writes one `key: value` line of the frontmatter. The gate runs no lint and no judge on a patch save, so keep each patch to these ops.
 
 ## Before you start
 

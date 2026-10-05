@@ -25,14 +25,12 @@ if (isMain && process.env.SDLC_KIT_GATE) process.exit(0);
 // A static import that fails would stop the hook before it can deny, so the
 // lint loads here and a load error denies each call.
 let lintText;
-let isUrlList;
 let stripAnchors;
 let frontmatterType;
-let readFrontmatter;
 let lintLoadError = null;
 try {
-  ({ lintText, isUrlList } = await import('../scripts/lint.mjs'));
-  ({ stripAnchors, frontmatterType, readFrontmatter } = await import('../scripts/linear.mjs'));
+  ({ lintText } = await import('../scripts/lint.mjs'));
+  ({ stripAnchors, frontmatterType } = await import('../scripts/linear.mjs'));
 } catch (e) {
   lintLoadError = e;
 }
@@ -332,12 +330,12 @@ function expandHome(path) {
 function parseGit(words, dir, assignments = []) {
   const global = [];
   const env = {};
-  let unresolved;
+  let unresolvedDir;
   for (const a of assignments) {
     const name = a.slice(0, a.indexOf('='));
     const value = a.slice(a.indexOf('=') + 1);
     if (!GIT_REPOSITORY_VARIABLES.includes(name)) continue;
-    if (isDynamic(value)) unresolved ??= value;
+    if (isDynamic(value)) unresolvedDir ??= value;
     env[name] = resolve(dir, expandHome(value));
   }
   let i = 1;
@@ -348,7 +346,7 @@ function parseGit(words, dir, assignments = []) {
     if (!GIT_OPTIONS_WITH_VALUE.has(name)) continue;
     const value = inline ?? words[++i];
     if (value === undefined) return null;
-    if ((name === '-C' || name === '--git-dir' || name === '--work-tree') && isDynamic(value)) unresolved ??= value;
+    if ((name === '-C' || name === '--git-dir' || name === '--work-tree') && isDynamic(value)) unresolvedDir ??= value;
     if (name === '-C') dir = resolve(dir, expandHome(value));
     else if (name === '--git-dir' || name === '--work-tree') global.push(`${name}=${resolve(dir, expandHome(value))}`);
     else if (name === '-c') global.push('-c', value);
@@ -375,8 +373,9 @@ function parseGit(words, dir, assignments = []) {
     if (push.remote === null) push.remote = w;
     else push.refspecs.push(w);
   }
-  unresolved ??= push.refspecs.find(isDynamic);
-  if (unresolved !== undefined) push.unresolved = unresolved;
+  if (unresolvedDir !== undefined) return withDir(push, unresolvedDir);
+  const refspec = push.refspecs.find(isDynamic);
+  if (refspec !== undefined) push.unresolved = refspec;
   return push;
 }
 
@@ -393,7 +392,8 @@ function parseGit(words, dir, assignments = []) {
  * A `cd <dir>` moves the pushes after it in the chain, a substitution
  * included, until the subshell that holds the `cd` closes. A heredoc body is
  * skipped. A push gets `unresolved` when its directory, a refspec or the
- * program word holds `$` or a backtick. The parser does not find a push inside
+ * program word holds `$` or a backtick, and `unknownDir` when the directory
+ * holds it. The parser does not find a push inside
  * a script, a shell function, a git alias, `env -S`, a heredoc body, or after
  * an `export` of `GIT_DIR`.
  */
@@ -438,7 +438,7 @@ export function parsePush(command, cwd = process.cwd()) {
 }
 
 function withDir(push, dirUnresolved) {
-  return dirUnresolved === undefined || push.unresolved !== undefined ? push : { ...push, unresolved: dirUnresolved };
+  return dirUnresolved === undefined || push.unknownDir ? push : { ...push, unresolved: dirUnresolved, unknownDir: true };
 }
 
 function git(push, args, { allowFail = false } = {}) {
@@ -462,7 +462,7 @@ function hasRef(push, ref) {
   return git(push, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], { allowFail: true }) !== null;
 }
 
-/** Lists the local refs that a push sends. */
+/** Lists the local refs that a push sends and that exist. */
 function pushedRefs(push) {
   let specs = push.refspecs;
   if (push.all) {
@@ -475,8 +475,10 @@ function pushedRefs(push) {
     const plain = spec.replace(/^\+/, '');
     const src = plain.includes(':') ? plain.slice(0, plain.indexOf(':')) : plain;
     if (!src) continue;
-    if (!hasRef(push, src)) throw new Error(`the local ref "${src}" does not exist`);
-    refs.push(src);
+    // A `*` in a refspec matches refs the way `for-each-ref` matches them.
+    if (src.includes('*')) refs.push(...git(push, ['for-each-ref', '--format=%(refname)', src]).split('\n').filter(Boolean));
+    // git itself stops a push of a local ref that does not exist.
+    else if (hasRef(push, src)) refs.push(src);
   }
   return refs;
 }
@@ -494,14 +496,9 @@ function pushedRefs(push) {
  * null when the directory is not in a git repository.
  */
 export function pushedDocuments(push) {
-  if (!existsSync(push.dir) || !statSync(push.dir).isDirectory()) return null;
-  // One call gives the git dir and the top. It fails outside a work tree,
-  // such as in a bare repository, and then the git dir alone decides.
-  const both = gitLine(push, ['rev-parse', '--git-dir', '--show-toplevel']);
-  if (both === null && gitLine(push, ['rev-parse', '--git-dir']) === null) return null;
+  const inTop = atTop(push);
+  if (inTop === null) return null;
   if (push.delete) return [];
-  const top = both?.split('\n')[1] ?? null;
-  const inTop = top ? { ...push, dir: top } : push;
   const documents = [];
   for (const local of pushedRefs(inTop)) {
     const atLocal = new Set(
@@ -518,6 +515,34 @@ export function pushedDocuments(push) {
     }
   }
   return documents;
+}
+
+const isDirectory = (dir) => existsSync(dir) && statSync(dir).isDirectory();
+
+// The push with `dir` set to the top of its work tree, so that the path
+// `.sdlc-kit` names the stage directory. Null when `dir` is not in a git
+// repository.
+function atTop(push) {
+  if (!isDirectory(push.dir)) return null;
+  // One call gives the git dir and the top. It fails outside a work tree,
+  // such as in a bare repository, and then the git dir alone decides.
+  const both = gitLine(push, ['rev-parse', '--git-dir', '--show-toplevel']);
+  if (both === null && gitLine(push, ['rev-parse', '--git-dir']) === null) return null;
+  const top = both?.split('\n')[1] ?? null;
+  return top ? { ...push, dir: top } : push;
+}
+
+/**
+ * Whether a commit of HEAD, a local branch or a tag that no remote-tracking
+ * ref holds changes a file under `.sdlc-kit/`. Only such a commit can
+ * publish a stage document, whatever the push sends. False when `push.dir`
+ * is not in a git repository.
+ */
+export function hasNewStageCommits(push) {
+  const inTop = atTop(push);
+  if (inTop === null) return false;
+  const refs = hasRef(inTop, 'HEAD') ? ['HEAD', '--branches', '--tags'] : ['--branches', '--tags'];
+  return git(inTop, ['log', '-1', '--format=%H', ...refs, '--not', '--remotes', '--', STAGE_DIR]).trim() !== '';
 }
 
 // The paths under `.sdlc-kit/` that the commits of `local` change, in path
@@ -677,54 +702,6 @@ export function missingDirReason(dir) {
   return `document-gate: the directory ${dir} of this push does not exist. Repeat the push with the literal path of the repository.`;
 }
 
-export const PATCH_REASON =
-  'document-gate: a patch save may only change frontmatter fields. Each op is a "replace" of one "key: value" line with a line of the same key, ' +
-  'or an "insert_before" or "insert_after" of one "key: value" line at a "key: value" line. The key is type, owner or relates. ' +
-  'The type is intent or spec, and relates is a comma list of URLs. ' +
-  'For any other edit, repeat the save with the full document in the content field and no patch field.';
-
-// The fields of the Linear frontmatter, which a frontmatter patch may write.
-// `exported` is a field of the git file only.
-const PATCH_KEYS = ['type', 'owner', 'relates'];
-
-// The key and the value of `text` when it is one frontmatter line, else null.
-function fieldLine(text) {
-  if (typeof text !== 'string' || text.includes('\n')) return null;
-  const field = Object.entries(readFrontmatter(`---\n${text}\n---\n`)?.fields ?? {});
-  return field.length === 1 ? { key: field[0][0], value: field[0][1].value } : null;
-}
-
-function validNewField(line) {
-  if (!line || !PATCH_KEYS.includes(line.key) || !line.value) return false;
-  if (line.key === 'type') return LINEAR_TYPES.includes(line.value);
-  if (line.key === 'relates') return isUrlList(line.value);
-  return true;
-}
-
-/**
- * Whether a patch only replaces or inserts frontmatter lines, so that the
- * gate can allow it with no lint of the body and no judge run. The gate
- * cannot read the document, so it checks the text of each op: an anchor or
- * an old line must be one "key: value" line, and each new line must be one
- * line of a key in PATCH_KEYS with a valid value. A "replace" keeps the key.
- */
-export function isFrontmatterPatch(patch) {
-  if (!Array.isArray(patch) || !patch.length) return false;
-  return patch.every((op) => {
-    if (op?.op === 'replace') {
-      const before = fieldLine(op.old_string);
-      const after = fieldLine(op.new_string);
-      return !op.replace_all && before !== null && after !== null && before.key === after.key && validNewField(after);
-    }
-    if (op?.op === 'insert_after' || op?.op === 'insert_before') {
-      const text = typeof op.text === 'string' ? op.text : '';
-      const line = op.op === 'insert_after' ? text.match(/^\n([^\n]*)$/)?.[1] : text.match(/^([^\n]*)\n$/)?.[1];
-      return fieldLine(op.anchor) !== null && validNewField(fieldLine(line));
-    }
-    return false;
-  });
-}
-
 /**
  * Decides one PreToolUse call. Returns {decision, reason, documents}, where
  * `documents` lists the name and the decision of each gated document.
@@ -734,14 +711,8 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
   const toolInput = input.tool_input ?? {};
   const limits = { env, deadline, floorMs };
   if (SAVE_TOOL.test(tool)) {
-    // The gate cannot read the document that a patch produces, or its type.
-    // A patch of frontmatter fields only needs no lint and no judge run.
-    if (toolInput.patch !== undefined) {
-      const name = toolInput.title ?? toolInput.id;
-      requireLint();
-      if (toolInput.content === undefined && isFrontmatterPatch(toolInput.patch)) return { decision: 'allow', documents: [{ name, decision: 'allow' }] };
-      return { decision: 'deny', reason: PATCH_REASON, documents: [{ name, decision: 'deny' }] };
-    }
+    // A patch save has no content, and the gate cannot read the document
+    // that it changes, so the gate cannot tell a stage document from another.
     if (typeof toolInput.content !== 'string') return { decision: 'allow', documents: [] };
     const name = toolInput.title ?? toolInput.id ?? 'the document';
     const denied = (reason) => ({ decision: 'deny', reason, documents: [{ name, decision: 'deny' }] });
@@ -757,12 +728,17 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
   }
   if (tool === 'Bash') {
     const documents = [];
-    for (const push of parsePush(toolInput.command, input.cwd ?? process.cwd())) {
-      if (push.unresolved !== undefined) {
-        return { decision: 'deny', reason: unresolvedReason(push.unresolved), documents: [{ name: push.unresolved, decision: 'deny' }] };
-      }
-      if (!existsSync(push.dir) || !statSync(push.dir).isDirectory()) {
-        return { decision: 'deny', reason: missingDirReason(push.dir), documents: [{ name: push.dir, decision: 'deny' }] };
+    const cwd = input.cwd ?? process.cwd();
+    for (const push of parsePush(toolInput.command, cwd)) {
+      const knownDir = !push.unknownDir && isDirectory(push.dir);
+      if (push.unresolved !== undefined || !knownDir) {
+        // The gate cannot list the documents of this push. It denies only
+        // when the repository holds new commits under `.sdlc-kit/`. When the
+        // directory of the push is unknown, the gate looks at the repository
+        // of the working directory, where the shell stays after a failed cd.
+        if (!hasNewStageCommits(knownDir ? push : { dir: cwd, global: [] })) continue;
+        const [name, reason] = push.unresolved !== undefined ? [push.unresolved, unresolvedReason(push.unresolved)] : [push.dir, missingDirReason(push.dir)];
+        return { decision: 'deny', reason, documents: [{ name, decision: 'deny' }] };
       }
       const pushed = pushedDocuments(push);
       if (pushed === null) continue;
