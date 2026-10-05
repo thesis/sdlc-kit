@@ -391,8 +391,9 @@ function parseGit(words, dir, assignments = []) {
  * - inside `$(...)` or backticks, and inside the string of `sh -c` or `eval`.
  * A `cd <dir>` moves the pushes after it in the chain, a substitution
  * included, until the subshell that holds the `cd` closes. A heredoc body is
- * skipped. A push gets `unresolved` when its directory, a refspec or the
- * program word holds `$` or a backtick. The parser does not find a push inside
+ * skipped. A push gets `unresolved` when its directory or a refspec holds `$`
+ * or a backtick. The parser finds a push only when the program word is a
+ * literal `git`, so not in `$(which git) push`. It does not find a push inside
  * a script, a shell function, a git alias, `env -S`, a heredoc body, or after
  * an `export` of `GIT_DIR`.
  */
@@ -415,10 +416,7 @@ export function parsePush(command, cwd = process.cwd()) {
     const { words, assignments } = programWords(item.words);
     if (!words.length) continue;
     const program = basename(words[0]);
-    if (isDynamic(words[0])) {
-      // The shell picks the program at run time, as in `$(which git) push`.
-      if (words.includes('push')) pushes.push({ dir, global: [], remote: null, refspecs: [], delete: false, all: false, unresolved: words[0] });
-    } else if (program === 'cd') {
+    if (program === 'cd') {
       const target = words.slice(1).find((w) => !/^-[LPe@]+$/.test(w));
       if (target === undefined) dir = process.env.HOME ?? dir;
       else if (target === '-' || isDynamic(target)) dirUnresolved = target;
