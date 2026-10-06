@@ -10,7 +10,7 @@ relates: <spec URL>, <plan PR URL>
 <!-- At most five bullets. Say the problem and the outcome. -->
 
 ## 2. Problem
-<!-- Who has the problem today, and how we know. Link the evidence. When no measurement exists yet, write the estimate of a named person in a source note: "(Source: an estimate of <name>)". -->
+<!-- Who has the problem today, and how we know. Link the evidence that exists. When no measurement exists yet, the estimate of a named person can go in a source note: "(Source: an estimate of <name>)". -->
 
 ## 3. Proposed outcome
 <!-- What changes, and for whom. Make the outcome measurable. -->
@@ -22,7 +22,7 @@ relates: <spec URL>, <plan PR URL>
 <!-- The users, teams and systems that the outcome touches. -->
 
 ## 6. Constraints
-<!-- Facts that bound any solution: dates, budgets, contracts, rules. Link the source of each fact, or name the person who decided it in a source note: "(Source: a decision of <name>)". -->
+<!-- Facts that bound any solution: dates, budgets, contracts, rules. When the owner knows the source of a fact, give it. Link the source, or name the person who decided it in a source note: "(Source: a decision of <name>)". -->
 
 ## 7. Open problems
 <!-- Numbered: 1., 2., ... Each open problem names its owner in an owner note: "(Owner: <name>)". Write "None." when no open problem is left. -->

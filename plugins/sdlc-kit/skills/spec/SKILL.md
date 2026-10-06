@@ -26,6 +26,8 @@ Before each save, you may run the `sdlc-kit:writing-judge` agent once on the dra
 
 When the lint lists findings, fix the lines that it names. When the gate denies a save, fix each high finding, and each medium and low finding that you can. Fix the findings of an early verdict in the same way. Then run the lint again, or repeat the save. When the gate allows a save with medium or low findings, fix each finding that you can. Then repeat the save, with the `id` that the first save returned.
 
+For a finding of "Source every fact", ask the owner once for the source of that fact. Skip the question when the owner already answered a question about that fact. With no source, you cannot fix the finding.
+
 Stop after three failed attempts. A save only to fix medium or low findings counts as one of these attempts. Also stop when you cannot fix any finding that is left. Give the owner the findings that are left, with their severity, and the path of the draft. Offer to file the findings with `/sdlc-kit:feedback`. Then wait for the owner to decide.
 
 A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
@@ -49,7 +51,7 @@ A regex check of the lint can give a false positive. When the text is correct, k
 5. Check each resolved thread against the text of the intent. A resolved thread is a decision, and its outcome must be in the text. Tell the owner each resolved thread whose outcome the text lacks. Name each such thread. Do not write the outcome yourself. Then go on.
 6. List the open problems of the intent and the decisions already taken. Show the list to the owner. Get the confirmation of the owner before you write a draft. Ask the owner which Linear team or project gets the spec. Propose the parent of the intent as the default.
 7. Do the research read-only, in the repository that the owner gives, in external documents and in on-chain facts.
-8. Interview the owner only on the forks that the research cannot settle. Ask one question at a time. A fork that stays open becomes an open decision with an owner and a date, not a paragraph of options.
+8. Interview the owner only on the forks that the research cannot settle, and on the facts with no source. Ask one question at a time. A fork that stays open becomes an open decision with an owner and a date, not a paragraph of options. For a fact with no source after the research that "Source every fact" of the writing rules covers, ask for its source. When the owner answers "I don't know", keep the sentence with no source note. Do not ask about that fact again.
 9. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
     - Fill every section of the template.
     - Remove the guidance comments.
