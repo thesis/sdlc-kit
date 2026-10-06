@@ -39,7 +39,7 @@ For every type, check these sections of the writing rules:
 
 For `intent`, `spec` and `plan`, also check these sections:
 
-- "Additions". A cross-reference to a Linear document is a link to a Linear URL. You cannot open the link, so check its form only. Check "Source every fact" against the whole document: a fact passes when one statement of it in the document carries a source. A missing open problem for a measurement is not a finding.
+- "Additions". A cross-reference to a Linear document is a link to a Linear URL. You cannot open the link, so check its form only. Check "Source every fact" against the whole document: a fact passes when one statement of it in the document carries a source. A fact with no source is a finding of "Source every fact", never of "Back a claim with its proof". A missing open problem for a measurement is not a finding.
 - The altitude of the type. An intent states the problem and the outcome, with no solution internals. A non-engineer can follow every section of a spec, and engineering detail goes to the plan. An agent with a fresh context can build from a plan alone, and every requirement traces to a file and a test.
 
 For `prose`, check only the list for every type.
@@ -66,14 +66,13 @@ The gate denies a save or a push with a high finding. It allows a save or a push
 
 `high`:
 
-- Each rule of "Durable records": no meta-context, the end state and not the history, the standalone test, and back a claim with its proof.
+- Each rule of "Durable records": no meta-context, the end state and not the history, the standalone test, and back a claim with its proof. That last rule covers only an appeal to an unnamed authority.
 - The altitude of the type.
 - "Owner notes" of "Additions".
 - `Contradiction`.
 
 `medium`:
 
-- "Source every fact" of "Additions".
 - "Cross-references" of "Additions".
 - These rules of "Word rules":
   - one word for one thing;
@@ -87,6 +86,7 @@ The gate denies a save or a push with a high finding. It allows a save or a push
 
 `low`:
 
+- "Source every fact" of "Additions".
 - These rules of "Word rules":
   - one part of speech for each word;
   - choose short and common words;

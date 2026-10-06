@@ -21,6 +21,8 @@ Before each save, you may run the `sdlc-kit:writing-judge` agent once on the dra
 
 When the lint lists findings, fix the lines that it names. When the gate denies a save, fix each high finding, and each medium and low finding that you can. Fix the findings of an early verdict in the same way. Then run the lint again, or repeat the save. When the gate allows a save with medium or low findings, fix each finding that you can. Then repeat the save, with the `id` that the first save returned.
 
+For a finding of "Source every fact", ask the owner once for the source of that fact. Skip the question when the owner already answered a question about that fact. With no source, you cannot fix the finding.
+
 Stop after three failed attempts. A save only to fix medium or low findings counts as one of these attempts. Also stop when you cannot fix any finding that is left. Give the owner the findings that are left, with their severity, and the path of the draft. Offer to file the findings with `/sdlc-kit:feedback`. Then wait for the owner to decide.
 
 A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
@@ -37,7 +39,7 @@ A regex check of the lint can give a false positive. When the text is correct, k
    6. the constraints;
    7. what nobody knows yet.
 
-   Stop the questions about a section when it has one concrete answer. Also stop when the owner says "unknown". An unknown answer becomes an open problem. When the owner gives a number with no measurement, ask who gives the estimate. Write the number with the source note `(Source: an estimate of <name>)` after its sentence.
+   Stop the questions about a section when it has one concrete answer. Also stop when the owner says "unknown". An unknown answer becomes an open problem. When the owner gives a number with no measurement, ask who gives the estimate. Write the number with the source note `(Source: an estimate of <name>)` after its sentence. For another fact with no source that "Source every fact" of the writing rules covers, ask the owner for its source. When the owner answers "I don't know" to a question about a source, keep the sentence with no source note. That answer is not an open problem. Do not ask about that fact again.
 3. Push back on solution talk. When the owner names a contract function, a file or a parameter, ask what outcome it serves. Write down that outcome. Write the named detail under "6. Constraints" only when it is a real constraint.
 4. Write the draft in a scratch file outside any repository, such as the session scratchpad directory. Use these steps:
    - Fill every section of the template.
