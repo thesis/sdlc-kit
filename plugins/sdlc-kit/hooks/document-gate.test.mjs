@@ -19,6 +19,7 @@ import {
   parsePush,
   pushedDocuments,
 } from './document-gate.mjs';
+import { exportDocument } from '../scripts/linear.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const hookScript = join(here, 'document-gate.mjs');
@@ -561,6 +562,86 @@ describe('the documents of a push', () => {
     const result = bash(work, 'git push origin main', 'pass');
     assert.equal(result.decision, 'deny');
     assert.match(result.reason, /\n\.sdlc-kit\/2026-09-probe\/intent\.md:4: structure-relates: the intent relates to spec\.md, but no spec\.md is next to it\n/);
+  });
+});
+
+describe('an exported document on a push', () => {
+  const LINEAR_SPEC = GIT_SPEC.replace(/^---\n[\s\S]*?\n---\n\n# Spec: .*\n/, '```yaml\ntype: spec\nowner: Ana Nowak\n```\n');
+  const exported = (content, url) => exportDocument(content, { url, title: 'Weekly export of vault deposits', at: '2026-10-01T00:00:00Z' });
+  const EXPORTED_INTENT = exported(INTENT, 'https://linear.app/thesis/document/intent-1');
+  const EXPORTED_SPEC = exported(LINEAR_SPEC, 'https://linear.app/thesis/document/spec-1');
+  const intentPath = '.sdlc-kit/2026-10-probe/intent.md';
+  const planPath = '.sdlc-kit/2026-10-probe/plan.md';
+  const specPath = '.sdlc-kit/2026-10-probe/spec.md';
+
+  // Commits the plan, and with `planOnRemote` pushes it with no gate. Then
+  // commits `files`, a map of a file name in the stage directory to its
+  // text, and gates a push of both commits. FAKE_RECORD stays absent when
+  // the gate starts no judge run.
+  function push(files, { planOnRemote = true, mode = 'fail' } = {}) {
+    const root = tempDir('sdlc-kit-repo-');
+    const work = join(root, 'work');
+    sh(root, 'init', '--bare', '-q', '-b', 'main', join(root, 'remote.git'));
+    sh(root, 'init', '-q', '-b', 'main', work);
+    sh(work, 'remote', 'add', 'origin', join(root, 'remote.git'));
+    write(work, planPath, PLAN);
+    sh(work, 'add', '-A');
+    sh(work, 'commit', '-q', '-m', 'Add the plan');
+    if (planOnRemote) sh(work, 'push', '-q', 'origin', 'main');
+    for (const [name, text] of Object.entries(files)) write(work, `.sdlc-kit/2026-10-probe/${name}`, text);
+    sh(work, 'add', '-A');
+    sh(work, 'commit', '-q', '-m', 'Export the intent and the spec');
+    const record = join(root, 'record.json');
+    const result = decide({ tool_name: 'Bash', cwd: work, tool_input: { command: 'git push origin main' } }, { env: judgeEnv(mode, { FAKE_RECORD: record }) });
+    return { result, judged: existsSync(record) };
+  }
+
+  test('an intent and a spec with the hash of their bodies pass the lint and get no judge run', () => {
+    const { result, judged } = push({ 'intent.md': EXPORTED_INTENT, 'spec.md': EXPORTED_SPEC });
+    assert.deepEqual(result, {
+      decision: 'allow',
+      documents: [
+        { name: intentPath, decision: 'allow' },
+        { name: specPath, decision: 'allow' },
+      ],
+    });
+    assert.equal(judged, false);
+  });
+
+  test('a spec whose body changed after the export gets the judge', () => {
+    const edited = EXPORTED_SPEC.replace('The report script.', 'The report script and its test.');
+    const { result, judged } = push({ 'intent.md': EXPORTED_INTENT, 'spec.md': edited });
+    assert.deepEqual(result.documents, [
+      { name: intentPath, decision: 'allow' },
+      { name: specPath, decision: 'deny' },
+    ]);
+    assert.match(result.reason, /^document-gate: the writing judge failed \.sdlc-kit\/2026-10-probe\/spec\.md:/);
+    assert.equal(judged, true);
+  });
+
+  test('an intent with an exported field of no hash gets the judge', () => {
+    const { result, judged } = push({ 'intent.md': EXPORTED_INTENT.replace(/ · sha256:[0-9a-f]+$/m, ''), 'spec.md': EXPORTED_SPEC });
+    assert.deepEqual(result.documents, [{ name: intentPath, decision: 'deny' }]);
+    assert.match(result.reason, /^document-gate: the writing judge failed \.sdlc-kit\/2026-10-probe\/intent\.md:/);
+    assert.equal(judged, true);
+  });
+
+  test('a plan in the same push as the exported files gets the judge', () => {
+    const { result, judged } = push({ 'intent.md': EXPORTED_INTENT, 'spec.md': EXPORTED_SPEC }, { planOnRemote: false });
+    assert.deepEqual(result.documents, [
+      { name: intentPath, decision: 'allow' },
+      { name: planPath, decision: 'deny' },
+    ]);
+    assert.match(result.reason, /^document-gate: the writing judge failed \.sdlc-kit\/2026-10-probe\/plan\.md:/);
+    assert.equal(judged, true);
+  });
+
+  test('a lint finding in an intent with the hash of its body denies with no judge run', () => {
+    const dashed = exported(DASHED, 'https://linear.app/thesis/document/intent-1');
+    const { result, judged } = push({ 'intent.md': dashed, 'spec.md': EXPORTED_SPEC }, { mode: 'pass' });
+    assert.deepEqual(result.documents, [{ name: intentPath, decision: 'deny' }]);
+    assert.match(result.reason, /^document-gate: the lint found these lines in \.sdlc-kit\/2026-10-probe\/intent\.md:\n.*: em-dash: /);
+    assert.equal(judged, false);
   });
 });
 
