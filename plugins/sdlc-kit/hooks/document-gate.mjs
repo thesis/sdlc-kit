@@ -51,6 +51,10 @@ export const GATE_BUDGET_MS = 270_000;
 export const JUDGE_FLOOR_MS = 20_000;
 export const STAGE_DIR = '.sdlc-kit';
 
+// The severities of a finding, in the order of the lines of a reason. Only
+// `high` denies.
+const SEVERITIES = ['high', 'medium', 'low'];
+
 export const VERDICT_SCHEMA = {
   type: 'object',
   properties: {
@@ -64,8 +68,9 @@ export const VERDICT_SCHEMA = {
           quote: { type: 'string' },
           rule: { type: 'string' },
           message: { type: 'string' },
+          severity: { type: 'string', enum: SEVERITIES },
         },
-        required: ['section', 'quote', 'rule', 'message'],
+        required: ['section', 'quote', 'rule', 'message', 'severity'],
         additionalProperties: false,
       },
     },
@@ -621,7 +626,7 @@ export function judgeArgs(env = process.env) {
 function validVerdict(v) {
   return (
     v && typeof v === 'object' && ['PASS', 'FAIL'].includes(v.verdict) && Array.isArray(v.findings) &&
-    v.findings.every((f) => f && ['section', 'quote', 'rule', 'message'].every((k) => typeof f[k] === 'string'))
+    v.findings.every((f) => f && ['section', 'quote', 'rule', 'message'].every((k) => typeof f[k] === 'string') && SEVERITIES.includes(f.severity))
   );
 }
 
@@ -660,7 +665,8 @@ export function runJudge(text, type, { env = process.env, timeoutMs = GATE_BUDGE
 }
 
 const REPEAT_SAVE = 'Fix the named lines. Then repeat the call.';
-const REPEAT_JUDGE = 'Fix each finding. Then repeat the call.';
+const REPEAT_JUDGE = 'Fix each high finding. Fix each other finding that you can. Then repeat the call.';
+const FIX_ADVICE = 'The findings do not block the call. Fix each finding that you can. Then save or push the document again.';
 
 /**
  * Gates one document: the lint first, then the judge. The gate removes the
@@ -668,7 +674,11 @@ const REPEAT_JUDGE = 'Fix each finding. Then repeat the call.';
  * A lint finding denies with no judge run. A git file of an intent or a spec
  * whose body is unchanged since the export passes with no judge run, because
  * its text passed the gate at its save in Linear.
- * A judge verdict with a finding, or with a FAIL, denies.
+ * A judge finding of the severity `high`, or a FAIL with no findings,
+ * denies. The gate reads the severity of each finding, not the verdict, so
+ * a PASS with a high finding denies and a FAIL with only medium and low
+ * findings allows. An allow with findings has `advice`, the findings of the
+ * document.
  * Every error of the judge run denies too. The judge run gets the time left
  * until `deadline`, and with less than `floorMs` left the gate denies with no
  * judge run. `form` is the form of the lint: "linear" for a save, "git"
@@ -693,10 +703,19 @@ export function gate(text, { type, form, name, exists, env = process.env, deadli
   } catch (e) {
     return { decision: 'deny', stage: 'judge', reason: `document-gate: the writing judge gave no verdict for ${name}: ${e.message}. Repeat the call.` };
   }
-  if (verdict.verdict === 'PASS' && !verdict.findings.length) return { decision: 'allow', stage: 'judge', costUsd: verdict.costUsd };
-  const lines = verdict.findings.map((f) => `${f.section}: "${f.quote}": ${f.rule}: ${f.message}`);
-  const list = lines.length ? `\n${lines.join('\n')}` : ' the verdict is FAIL with no findings.';
-  return { decision: 'deny', stage: 'judge', costUsd: verdict.costUsd, reason: `document-gate: the writing judge failed ${name}:${list}\n${REPEAT_JUDGE}` };
+  const { findings: judged, costUsd } = verdict;
+  if (verdict.verdict === 'FAIL' && !judged.length) {
+    return { decision: 'deny', stage: 'judge', costUsd, reason: `document-gate: the writing judge failed ${name}: the verdict is FAIL with no findings.\n${REPEAT_JUDGE}` };
+  }
+  if (!judged.length) return { decision: 'allow', stage: 'judge', costUsd };
+  const lines = judged
+    .toSorted((a, b) => SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity))
+    .map((f) => `${f.severity}: ${f.section}: "${f.quote}": ${f.rule}: ${f.message}`)
+    .join('\n');
+  if (judged.some((f) => f.severity === 'high')) {
+    return { decision: 'deny', stage: 'judge', costUsd, reason: `document-gate: the writing judge failed ${name}:\n${lines}\n${REPEAT_JUDGE}` };
+  }
+  return { decision: 'allow', stage: 'judge', costUsd, advice: `document-gate: the writing judge passed ${name} with these findings:\n${lines}` };
 }
 
 export function outOfTimeReason(name) {
@@ -705,7 +724,8 @@ export function outOfTimeReason(name) {
 
 /**
  * Decides one PreToolUse call. Returns {decision, reason, documents}, where
- * `documents` lists the name and the decision of each gated document.
+ * `documents` lists the name and the decision of each gated document. An
+ * allow has `advice` when an allowed document has findings.
  */
 export function decide(input, { env = process.env, deadline = Date.now() + GATE_BUDGET_MS, floorMs = JUDGE_FLOOR_MS } = {}) {
   const tool = input.tool_name ?? '';
@@ -724,11 +744,12 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
     if (STAGE_TYPES.includes(declared) && fromTitle && declared !== fromTitle) return denied(typeMismatchReason(toolInput.title.trim(), fromTitle, declared));
     const type = documentType({ content: toolInput.content });
     if (type === null) return { decision: 'allow', documents: [{ name, decision: 'allow' }] };
-    const result = gate(toolInput.content, { type, form: 'linear', name, ...limits });
-    return { ...result, documents: [{ name, decision: result.decision }] };
+    const { advice, ...result } = gate(toolInput.content, { type, form: 'linear', name, ...limits });
+    return { ...result, ...joinAdvice([advice]), documents: [{ name, decision: result.decision }] };
   }
   if (tool === 'Bash') {
     const documents = [];
+    const advice = [];
     for (const push of parsePush(toolInput.command, input.cwd ?? process.cwd())) {
       // The skills push with a plain `git push`, which the gate can always
       // list, so a push that it cannot list is not a push of a skill.
@@ -739,15 +760,32 @@ export function decide(input, { env = process.env, deadline = Date.now() + GATE_
         const result = gate(doc.text(), { type: documentType({ path: doc.path }), form: 'git', name: doc.path, exists: doc.exists, ...limits });
         documents.push({ name: doc.path, decision: result.decision });
         if (result.decision === 'deny') return { ...result, documents };
+        advice.push(result.advice);
       }
     }
-    return { decision: 'allow', documents };
+    return { decision: 'allow', ...joinAdvice(advice), documents };
   }
   return { decision: 'allow', documents: [] };
 }
 
+// Joins the advice of the allowed documents of one call, and adds the line
+// that tells the agent what to do. With no advice, the result is empty.
+function joinAdvice(blocks) {
+  const given = blocks.filter(Boolean);
+  return given.length ? { advice: `${given.join('\n')}\n${FIX_ADVICE}` } : {};
+}
+
 export function denyOutput(reason) {
   return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } });
+}
+
+/**
+ * The hook output that gives the advice to the agent. It has no
+ * `permissionDecision`, because the value `allow` skips the permission
+ * prompt of the user.
+ */
+export function adviceOutput(advice) {
+  return JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: advice } });
 }
 
 function log(env, tool, documents, ms) {
@@ -768,6 +806,7 @@ async function main() {
     const result = decide(input, { deadline: started + GATE_BUDGET_MS });
     log(process.env, tool, result.documents, Date.now() - started);
     if (result.decision === 'deny') out = denyOutput(result.reason);
+    else if (result.advice) out = adviceOutput(result.advice);
   } catch (e) {
     log(process.env, tool, [{ name: '-', decision: 'deny' }], Date.now() - started);
     out = denyOutput(`document-gate: the gate failed: ${e.message}. Repeat the call.`);

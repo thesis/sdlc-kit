@@ -24,7 +24,15 @@ The URL decides the venue:
 
 ## Retry
 
-When the lint lists findings, or the gate denies a save or a push, fix the lines or the findings that it names. Then run the lint again, or repeat the call. Stop after three failed attempts. Give the person who ran the skill the outstanding findings and the path of the file. Offer to file the findings with `/sdlc-kit:feedback`. Then wait for their decision. A regex check of the lint can give a false positive. When the text is correct, keep it and tell the person who ran the skill which finding is wrong.
+Each finding of the writing judge has a severity: `high`, `medium` or `low`. The gate denies a save or a push with a high finding. It allows a save or a push with only medium and low findings, and gives you those findings.
+
+Before each save or push, you may run the `sdlc-kit:writing-judge` agent once on each document of the save or the push, for an early verdict. Do not run it at other times.
+
+When the lint lists findings, fix the lines that it names. When the gate denies a save or a push, fix each high finding, and each medium and low finding that you can. Fix the findings of an early verdict in the same way. Then run the lint again, or repeat the call. When the gate allows a save or a push with medium or low findings, fix each finding that you can. Then repeat the save, or commit the fixes and repeat the push.
+
+Stop after three failed attempts. A save or push only to fix medium or low findings counts as one of these attempts. Also stop when you cannot fix any finding that is left. Give the person who ran the skill the findings that are left, with their severity, and the path of the file. Offer to file the findings with `/sdlc-kit:feedback`. Then wait for their decision.
+
+A regex check of the lint can give a false positive. When the text is correct, keep it and tell the person who ran the skill which finding is wrong.
 
 ## Threads and their classes
 
@@ -76,7 +84,7 @@ These rules hold for every class:
    ```
 
    When the lint lists findings, follow the retry rule above.
-9. Save the document once, after every copy edit of the run. Use the `save_document` tool with the `id` of the document and the full content in `content`. The gate of the plugin runs on the save. When it denies the save, follow the retry rule above. When the run has no edit, skip this step.
+9. Save the document once, after every copy edit of the run. Use the `save_document` tool with the `id` of the document and the full content in `content`. The gate of the plugin runs on the save. When it denies the save, or allows it with findings, follow the retry rule above. When the run has no edit, skip this step.
 10. Post each reply with the `save_comment` tool. Pass the `id` of the thread as `parentId`, and the reply as `body`. The `id` of a thread is the `id` of its root comment.
 11. Give the report of "The report".
 
@@ -102,7 +110,7 @@ These rules hold for every class:
    ```
 
    When the lint lists findings, follow the retry rule above.
-9. Commit every edit of the run in one commit. Then push the branch with a plain `git push`. The gate runs on the push. When it denies the push, follow the retry rule above. When the run has no edit, skip this step.
+9. Commit every edit of the run in one commit. Then push the branch with a plain `git push`. The gate runs on the push. When it denies the push, or allows it with findings, follow the retry rule above. When the run has no edit, skip this step.
 10. Post each reply:
 
     ```

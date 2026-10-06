@@ -20,7 +20,15 @@ The owner decides when the intent is ready for the spec. The skill reports the o
 
 ## Retry
 
-When the lint lists findings, or the gate denies a save, fix the lines or the findings that it names. Then run the lint again, or repeat the save. Stop after three failed attempts. Give the owner the outstanding findings and the path of the draft. Offer to file the findings with `/sdlc-kit:feedback`. Then wait for the owner to decide. A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
+Each finding of the writing judge has a severity: `high`, `medium` or `low`. The gate denies a save with a high finding. It allows a save with only medium and low findings, and gives you those findings.
+
+Before each save, you may run the `sdlc-kit:writing-judge` agent once on the draft, for an early verdict. Do not run it at other times.
+
+When the lint lists findings, fix the lines that it names. When the gate denies a save, fix each high finding, and each medium and low finding that you can. Fix the findings of an early verdict in the same way. Then run the lint again, or repeat the save. When the gate allows a save with medium or low findings, fix each finding that you can. Then repeat the save, with the `id` that the first save returned.
+
+Stop after three failed attempts. A save only to fix medium or low findings counts as one of these attempts. Also stop when you cannot fix any finding that is left. Give the owner the findings that are left, with their severity, and the path of the draft. Offer to file the findings with `/sdlc-kit:feedback`. Then wait for the owner to decide.
+
+A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
 
 ## Procedure
 
@@ -72,7 +80,7 @@ When the lint lists findings, or the gate denies a save, fix the lines or the fi
     - Give the document exactly one parent: the team or the project that the owner confirmed.
     - Put the draft in `content` as markdown, with its frontmatter.
 
-    The gate of the plugin runs on the save. When it denies the save, follow the retry rule above.
+    The gate of the plugin runs on the save. When it denies the save, or allows it with findings, follow the retry rule above.
 13. Link the spec from the intent. Call the `save_document` tool with the `id` of the intent and this `patch`, and no `content`. When the intent has no `relates` field, the patch is one `insert_after` op with `anchor` the `owner` line of the intent and `text` `\nrelates: <spec URL>`. When the intent has a `relates` field, the patch is one `replace` op with `old_string` that line and `new_string` the same line with `, <spec URL>` at its end. Copy the anchor or the old line from the scratch file of the intent. The save is best effort. When it fails, tell the owner that the intent does not link the spec. Then go on.
 14. Give the owner the URL of the spec.
 

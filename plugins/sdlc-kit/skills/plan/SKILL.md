@@ -27,7 +27,15 @@ The input is the Linear URL of the spec: $ARGUMENTS
 
 ## Retry
 
-When the lint lists findings, or the gate denies a save or a push, fix the lines or the findings that it names. Then run the lint again, or repeat the call. Stop after three failed attempts. Give the owner or the engineer the outstanding findings and the path of the file. Offer to file the findings with `/sdlc-kit:feedback`. Then wait for their decision. A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
+Each finding of the writing judge has a severity: `high`, `medium` or `low`. The gate denies a push with a high finding. It allows a push with only medium and low findings, and gives you those findings.
+
+Before each push, you may run the `sdlc-kit:writing-judge` agent once on `plan.md`, for an early verdict. Do not run it at other times.
+
+When the lint lists findings, fix the lines that it names. When the gate denies a push, fix each high finding, and each medium and low finding that you can. Fix the findings of an early verdict in the same way. Then run the lint again, or repeat the call. When the gate allows a push with medium or low findings, fix each finding that you can. Then commit the fixes and repeat the push.
+
+Stop after three failed attempts. A push only to fix medium or low findings counts as one of these attempts. Also stop when you cannot fix any finding that is left. Give the owner or the engineer the findings that are left, with their severity, and the path of the file. Offer to file the findings with `/sdlc-kit:feedback`. Then wait for their decision.
+
+A regex check of the lint can give a false positive. When the text is correct, keep it and tell the owner which finding is wrong.
 
 ## Procedure
 
@@ -123,7 +131,7 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
 24. When the verdict lists items, fix the plan. Then run the check again. Do not do more than three runs. After the third failed run, give the engineer the outstanding items and the path of the plan. Then wait for the engineer to decide.
 25. Run the lint on `intent.md` and `spec.md`, with `--form git` and with `--type intent` and `--type spec`. The lint checks that the files of each `relates` field exist, so it runs after `plan.md` exists. Do not edit the exported text. When the lint lists findings, stop. Give the owner the findings and the path of each file. Then wait for the owner to decide.
 26. Commit the plan.
-27. Push the branch with one `git push`. The push holds the commit of the export and the commit of the plan. The gate runs on the push. When it denies the push, follow the retry rule above.
+27. Push the branch with one `git push`. The push holds the commit of the export and the commit of the plan. The gate runs on the push. When it denies the push, or allows it with findings, follow the retry rule above.
 28. Open the pull request with `gh pr create`.
 29. Add the URL of the pull request to the `relates` field of the spec in Linear. Call the `save_document` tool with the `id` of the spec and this `patch`, and no `content`: one `replace` op with `old_string` `relates: <intent URL>` and `new_string` `relates: <intent URL>, <pull request URL>`. Copy the old line from the scratch file of the spec. The save is best effort. When it fails, tell the owner that the spec does not link the pull request. Then go on.
 30. Add the URL of the pull request to the `relates` field of the intent in the same way: one `replace` op with `old_string` `relates: <spec URL>` and `new_string` `relates: <spec URL>, <pull request URL>`. Copy the old line from the scratch file of the intent. When the intent has no `relates` field, the patch is one `insert_after` op with `anchor` the `owner` line of the intent and `text` `\nrelates: <pull request URL>`. The save is best effort. When it fails, tell the owner that the intent does not link the pull request. Then go on.
