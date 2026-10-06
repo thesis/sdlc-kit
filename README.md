@@ -59,7 +59,9 @@ A stage of work starts with an intent, continues with a spec and ends with the b
 
 When comments pile up on an intent, a spec or a plan pull request, run `/sdlc-kit:steward <URL>`. Claude makes the copy edits, answers the questions with a source, and leaves each decision to you.
 
-Every document and every comment follows the writing rules of the plugin, based on Simplified Technical English. A save or a push that breaks the rules is denied, and Claude fixes the text and retries. After three failed attempts, Claude gives you the findings and offers to file them with `/sdlc-kit:feedback`.
+Every document and every comment follows the writing rules of the plugin, based on Simplified Technical English. The plugin checks each save and each push of a document. Each finding of the check has a severity: high, medium or low.
+
+A save or a push with a high finding is denied. With only medium and low findings, the save or the push goes through, and Claude gets the findings. Claude fixes each finding that it can and retries. After three failed attempts, Claude gives you the findings that are left, with their severity, and offers to file them with `/sdlc-kit:feedback`.
 
 Run `/sdlc-kit:feedback` to report a problem or an idea about the plugin. The report goes to Linear only, so a reporter with no GitHub account can use it too.
 
