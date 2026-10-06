@@ -29,7 +29,7 @@ relates: https://linear.app/thesis/document/spec-1, https://github.com/thesis/va
 
 ## 1. Executive summary
 - The finance team gets a <linear-comment id="${ROOT_A}" resolved="true">weekly report</linear-comment> of the deposits.
-- We ask for a decision on the first report date.
+- The report replaces a manual count of four hours.
 
 ## 2. Problem
 The analyst does a manual count every Monday. <linear-comment id="${ROOT_B}" resolved="false">The count takes four hours. </linear-comment>The [explorer](<https://explorer.example.org/vaults>) is the source.

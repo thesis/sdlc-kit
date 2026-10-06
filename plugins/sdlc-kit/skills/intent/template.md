@@ -7,7 +7,7 @@ relates: <spec URL>, <plan PR URL>
 # Intent: <name>
 
 ## 1. Executive summary
-<!-- At most five bullets, for decision makers. Say the problem, the outcome and the decision you ask for. -->
+<!-- At most five bullets. Say the problem and the outcome. -->
 
 ## 2. Problem
 <!-- Who has the problem today, and how we know. Link the evidence. When no measurement exists yet, write the estimate of a named person in a source note: "(Source: an estimate of <name>)". -->

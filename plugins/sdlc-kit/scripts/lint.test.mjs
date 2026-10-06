@@ -23,7 +23,7 @@ function templateText(type) {
 }
 
 const SECTION_TEXT = {
-  'Executive summary': '- The vault pays lenders a fixed rate.\n- We ask for a decision on the launch date.',
+  'Executive summary': '- The vault pays lenders a fixed rate.\n- A lender can withdraw at any time.',
   'Open problems': '1. The rate after the first term is unknown. (Owner: Ana Nowak)',
   Requirements: '- R1: A lender can withdraw at any time.\n- R2: The page shows the rate.',
   Risks: '1. A large withdrawal can empty the buffer. Response: monitoring refills it.',
