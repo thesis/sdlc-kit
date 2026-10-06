@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   GATE_BUDGET_MS,
   SAVE_TOOL,
+  adviceOutput,
   noFrontmatterReason,
   outOfTimeReason,
   typeMismatchReason,
@@ -149,7 +150,8 @@ None.
 
 // A stand-in for the claude binary. FAKE_MODE picks the answer. In the mode
 // "slow-for", the fake sleeps FAKE_SLEEP_MS only when the input holds the
-// text FAKE_SLOW_FOR. FAKE_RECORD
+// text FAKE_SLOW_FOR. In the mode "high-for", the finding is high only when
+// the input holds the text FAKE_HIGH_FOR, and medium otherwise. FAKE_RECORD
 // names a file that gets the arguments, the prompt, the cwd and SDLC_KIT_GATE.
 const fakeDir = tempDir('sdlc-kit-fake-');
 const fakeClaude = join(fakeDir, 'claude');
@@ -165,11 +167,21 @@ process.stdin.on('end', () => {
   }
   const result = (structured_output, extra = {}) =>
     console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, num_turns: 2, total_cost_usd: 0.01, result: JSON.stringify(structured_output), structured_output, ...extra }));
-  const finding = { section: '3. Proposed outcome', quote: 'the report', rule: 'Altitude', message: 'Name the outcome.' };
+  const rules = { high: 'Altitude', medium: 'Banned words', low: 'Word rules: one part of speech' };
+  const finding = (severity) => ({ section: '3. Proposed outcome', quote: 'the report', rule: rules[severity], message: 'Name the outcome.', severity });
   switch (process.env.FAKE_MODE) {
     case 'pass': return result({ verdict: 'PASS', findings: [] });
-    case 'fail': return result({ verdict: 'FAIL', findings: [finding] });
-    case 'pass-with-findings': return result({ verdict: 'PASS', findings: [finding] });
+    case 'fail': return result({ verdict: 'FAIL', findings: [finding('low'), finding('high'), finding('medium')] });
+    case 'fail-empty': return result({ verdict: 'FAIL', findings: [] });
+    case 'fail-without-high': return result({ verdict: 'FAIL', findings: [finding('low')] });
+    case 'pass-with-high': return result({ verdict: 'PASS', findings: [finding('high')] });
+    case 'advice': return result({ verdict: 'PASS', findings: [finding('low'), finding('medium')] });
+    case 'no-severity': return result({ verdict: 'PASS', findings: [{ ...finding('low'), severity: undefined }] });
+    case 'bad-severity': return result({ verdict: 'PASS', findings: [{ ...finding('low'), severity: 'critical' }] });
+    case 'high-for': {
+      const severity = input.includes(process.env.FAKE_HIGH_FOR) ? 'high' : 'medium';
+      return result({ verdict: severity === 'high' ? 'FAIL' : 'PASS', findings: [finding(severity)] });
+    }
     case 'no-structured-output': return result(undefined);
     case 'is-error': return result(undefined, { is_error: true, subtype: 'error_max_budget_usd' });
     case 'invalid': return console.log('not json');
@@ -669,25 +681,61 @@ describe('gate', () => {
     assert.equal(gate(anchored, { type: 'intent', name: 'x', env: judgeEnv('pass') }).decision, 'allow');
   });
 
-  test('a FAIL verdict denies with one line per finding', () => {
+  test('a high finding denies with one line per finding, high first', () => {
     const result = gate(INTENT, { type: 'intent', name: 'Intent: Weekly export', env: judgeEnv('fail') });
     assert.equal(result.decision, 'deny');
     assert.equal(
       result.reason,
       'document-gate: the writing judge failed Intent: Weekly export:\n' +
-        '3. Proposed outcome: "the report": Altitude: Name the outcome.\n' +
-        'Fix each finding. Then repeat the call.',
+        'high: 3. Proposed outcome: "the report": Altitude: Name the outcome.\n' +
+        'medium: 3. Proposed outcome: "the report": Banned words: Name the outcome.\n' +
+        'low: 3. Proposed outcome: "the report": Word rules: one part of speech: Name the outcome.\n' +
+        'Fix each high finding. Fix each other finding that you can. Then repeat the call.',
     );
+    assert.equal('advice' in result, false);
   });
 
-  test('a PASS verdict with a finding denies', () => {
-    assert.equal(gate(INTENT, { type: 'intent', name: 'x', env: judgeEnv('pass-with-findings') }).decision, 'deny');
+  test('a PASS verdict with a high finding denies', () => {
+    assert.equal(gate(INTENT, { type: 'intent', name: 'x', env: judgeEnv('pass-with-high') }).decision, 'deny');
+  });
+
+  test('a FAIL verdict with no findings denies', () => {
+    assert.deepEqual(gate(INTENT, { type: 'intent', name: 'x', env: judgeEnv('fail-empty') }), {
+      decision: 'deny',
+      stage: 'judge',
+      costUsd: 0.01,
+      reason:
+        'document-gate: the writing judge failed x: the verdict is FAIL with no findings.\n' +
+        'Fix each high finding. Fix each other finding that you can. Then repeat the call.',
+    });
+  });
+
+  test('medium and low findings allow with the findings as advice, medium first', () => {
+    assert.deepEqual(gate(INTENT, { type: 'intent', name: 'x', env: judgeEnv('advice') }), {
+      decision: 'allow',
+      stage: 'judge',
+      costUsd: 0.01,
+      advice:
+        'document-gate: the writing judge passed x with these findings:\n' +
+        'medium: 3. Proposed outcome: "the report": Banned words: Name the outcome.\n' +
+        'low: 3. Proposed outcome: "the report": Word rules: one part of speech: Name the outcome.',
+    });
+  });
+
+  test('a FAIL verdict with no high finding allows', () => {
+    assert.equal(gate(INTENT, { type: 'intent', name: 'x', env: judgeEnv('fail-without-high') }).decision, 'allow');
+  });
+
+  test('a PASS verdict with no findings allows with no advice', () => {
+    assert.deepEqual(gate(INTENT, { type: 'intent', name: 'x', env: judgeEnv('pass') }), { decision: 'allow', stage: 'judge', costUsd: 0.01 });
   });
 
   for (const [mode, message] of [
     ['invalid', 'the judge output is not JSON (not json)'],
     ['exit', 'the judge stopped with exit code 3 (boom)'],
     ['no-structured-output', 'the judge output has no valid verdict'],
+    ['no-severity', 'the judge output has no valid verdict'],
+    ['bad-severity', 'the judge output has no valid verdict'],
     ['is-error', 'the judge run failed (error_max_budget_usd)'],
   ]) {
     test(`a judge run with ${mode} denies with the error`, () => {
@@ -743,7 +791,10 @@ describe('gate', () => {
       assert.equal(option('--max-turns'), '2');
       assert.equal(option('--max-budget-usd'), '2');
       assert.ok(seen.argv.includes('--no-session-persistence'));
-      assert.deepEqual(JSON.parse(option('--json-schema')).required, ['verdict', 'findings']);
+      const schema = JSON.parse(option('--json-schema'));
+      assert.deepEqual(schema.required, ['verdict', 'findings']);
+      assert.deepEqual(schema.properties.findings.items.required, ['section', 'quote', 'rule', 'message', 'severity']);
+      assert.deepEqual(schema.properties.findings.items.properties.severity.enum, ['high', 'medium', 'low']);
       assert.deepEqual(JSON.parse(option('--agents')), judgeAgents());
     });
 
@@ -845,6 +896,21 @@ describe('decide', () => {
       decision: 'allow',
       stage: 'judge',
       costUsd: 0.01,
+      documents: [{ name: 'Intent: Weekly export', decision: 'allow' }],
+    });
+  });
+
+  test('a save of an intent with medium and low findings allows with the advice and its last line', () => {
+    const result = decide({ tool_name: SAVE, tool_input: { title: 'Intent: Weekly export', content: INTENT } }, { env: judgeEnv('advice') });
+    assert.deepEqual(result, {
+      decision: 'allow',
+      stage: 'judge',
+      costUsd: 0.01,
+      advice:
+        'document-gate: the writing judge passed Intent: Weekly export with these findings:\n' +
+        'medium: 3. Proposed outcome: "the report": Banned words: Name the outcome.\n' +
+        'low: 3. Proposed outcome: "the report": Word rules: one part of speech: Name the outcome.\n' +
+        'The findings do not block the call. Fix each finding that you can. Then save or push the document again.',
       documents: [{ name: 'Intent: Weekly export', decision: 'allow' }],
     });
   });
@@ -1022,6 +1088,61 @@ describe('decide', () => {
       assert.deepEqual(bash('git push', root), { decision: 'allow', documents: [] });
     });
   });
+
+  describe('the advice of a push', () => {
+    // A work repository whose one commit adds a stage that passes the lint.
+    // Its remote is empty, so the gate judges every stage document.
+    const stage = () => {
+      const root = tempDir('sdlc-kit-repo-');
+      const work = join(root, 'work');
+      sh(root, 'init', '--bare', '-q', '-b', 'main', join(root, 'remote.git'));
+      sh(root, 'init', '-q', '-b', 'main', work);
+      sh(work, 'remote', 'add', 'origin', join(root, 'remote.git'));
+      write(work, '.sdlc-kit/2026-09-probe/intent.md', GIT_INTENT);
+      write(work, '.sdlc-kit/2026-09-probe/spec.md', GIT_SPEC);
+      write(work, '.sdlc-kit/2026-09-probe/plan.md', PLAN);
+      sh(work, 'add', '-A');
+      sh(work, 'commit', '-q', '-m', 'Add the stage');
+      return work;
+    };
+    const push = (env) => decide({ tool_name: 'Bash', cwd: stage(), tool_input: { command: 'git push origin main' } }, { env });
+
+    test('the advice holds the findings of each document, then one last line', () => {
+      const lines = (path) => [
+        `document-gate: the writing judge passed .sdlc-kit/2026-09-probe/${path} with these findings:`,
+        'medium: 3. Proposed outcome: "the report": Banned words: Name the outcome.',
+        'low: 3. Proposed outcome: "the report": Word rules: one part of speech: Name the outcome.',
+      ];
+      const result = push(judgeEnv('advice'));
+      assert.equal(result.decision, 'allow');
+      assert.equal(
+        result.advice,
+        [
+          ...lines('intent.md'),
+          ...lines('plan.md'),
+          ...lines('spec.md'),
+          'The findings do not block the call. Fix each finding that you can. Then save or push the document again.',
+        ].join('\n'),
+      );
+    });
+
+    test('a high finding in a later document denies with its reason and no advice', () => {
+      const result = push(judgeEnv('high-for', { FAKE_HIGH_FOR: '# Plan:' }));
+      assert.deepEqual(result, {
+        decision: 'deny',
+        stage: 'judge',
+        costUsd: 0.01,
+        reason:
+          'document-gate: the writing judge failed .sdlc-kit/2026-09-probe/plan.md:\n' +
+          'high: 3. Proposed outcome: "the report": Altitude: Name the outcome.\n' +
+          'Fix each high finding. Fix each other finding that you can. Then repeat the call.',
+        documents: [
+          { name: '.sdlc-kit/2026-09-probe/intent.md', decision: 'allow' },
+          { name: '.sdlc-kit/2026-09-probe/plan.md', decision: 'deny' },
+        ],
+      });
+    });
+  });
 });
 
 describe('the hook process', () => {
@@ -1046,6 +1167,21 @@ describe('the hook process', () => {
     const r = run({ tool_name: 'Bash', cwd: tmpdir(), tool_input: { command: 'ls' } });
     assert.equal(r.status, 0);
     assert.equal(r.stdout, '');
+  });
+
+  test('a judged save with no findings prints nothing', () => {
+    const r = run({ tool_name: SAVE, tool_input: { title: 'Intent: Weekly export', content: INTENT } });
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout, '');
+  });
+
+  test('an allow with advice prints the advice as additionalContext with no permission decision', () => {
+    const save = { tool_name: SAVE, tool_input: { title: 'Intent: Weekly export', content: INTENT } };
+    const r = run(save, { FAKE_MODE: 'advice' });
+    assert.equal(r.status, 0);
+    const { advice } = decide(save, { env: judgeEnv('advice') });
+    assert.deepEqual(JSON.parse(r.stdout), { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: advice } });
+    assert.equal(r.stdout, `${adviceOutput(advice)}\n`);
   });
 
   test('the hook runs through a symlink to the plugin', () => {
