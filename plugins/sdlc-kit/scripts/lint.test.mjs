@@ -457,7 +457,21 @@ describe('frontmatter', () => {
       assert.deepEqual(rules(gitIntent.replace(/^exported: .*\n/m, ''), 'intent', GIT), ['structure-exported']);
     });
 
-    for (const value of ['yesterday', INTENT_URL, EXPORTED_AT, `${INTENT_URL} · 29.09.2026`]) {
+    test('an exported field with no hash passes, as plugin 1.0.0 wrote it', () => {
+      assert.deepEqual(rules(gitIntent.replace(/ · sha256:[0-9a-f]+$/m, ''), 'intent', GIT), []);
+    });
+
+    const hash = 'ab'.repeat(32);
+    for (const value of [
+      'yesterday',
+      INTENT_URL,
+      EXPORTED_AT,
+      `${INTENT_URL} · 29.09.2026`,
+      `${INTENT_URL} · ${EXPORTED_AT} · sha256:${hash.slice(1)}`,
+      `${INTENT_URL} · ${EXPORTED_AT} · sha256:${hash.toUpperCase()}`,
+      `${INTENT_URL} · ${EXPORTED_AT} · sha1:${hash.slice(24)}`,
+      `${INTENT_URL} · ${EXPORTED_AT} · ${hash}`,
+    ]) {
       test(`an exported field in another form fails: ${value}`, () => {
         assert.deepEqual(rules(gitIntent.replace(/^exported: .*$/m, `exported: ${value}`), 'intent', GIT), ['structure-exported']);
       });

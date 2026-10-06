@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -20,6 +21,7 @@ const FIELD = /^([a-z][a-z0-9_-]*):(?:[ \t]+(.*?))?[ \t]*$/;
 // as more than plain text. Double quotes around the value make it plain.
 const NOT_PLAIN = /^(?:[-?:](?:\s|$)|[,[\]{}#&*!|>'"%@`])|: | #|:$/;
 const TITLE_PREFIX = { intent: 'Intent', spec: 'Spec' };
+const EXPORTED_HASH = /[ \t]+·[ \t]+sha256:([0-9a-f]{64})$/;
 
 /** The `relates` field of each stage file in git: the other files of its stage directory. */
 export const GIT_RELATES = {
@@ -100,12 +102,13 @@ export function frontmatterType(content) {
  * Turns the content that get_document returned into the git file of an
  * intent or a spec: the frontmatter between "---" lines with the field
  * `relates` of GIT_RELATES in place of the Linear URLs, then the field
- * `exported: <url> · <time>` last, then the line "# <Type>: <name>", then
- * the body. The name is `title`, the title of the Linear document, with no
- * "Intent:" or "Spec:" prefix. The export removes the comment anchors and
- * the angle brackets of link targets, and replaces an earlier `exported`
- * field. Throws when the content has no valid frontmatter, its type is not
- * intent or spec, or the prefix of the title names the other type.
+ * `exported: <url> · <time> · sha256:<bodyHash>` last, then the line
+ * "# <Type>: <name>", then the body. The name is `title`, the title of the
+ * Linear document, with no "Intent:" or "Spec:" prefix. The export removes
+ * the comment anchors and the angle brackets of link targets, and replaces
+ * an earlier `exported` field. Throws when the content has no valid
+ * frontmatter, its type is not intent or spec, or the prefix of the title
+ * names the other type.
  */
 export function exportDocument(content, { url, title, at = isoNow() }) {
   if (!url) throw new Error('the document URL is missing');
@@ -126,7 +129,29 @@ export function exportDocument(content, { url, title, at = isoNow() }) {
   const fields = lines.slice(fm.start + 1, fm.end).filter((l) => l.trim() !== '' && !/^(?:relates|exported):/.test(l));
   const body = lines.slice(fm.end + 1);
   while (body.length && body[0].trim() === '') body.shift();
-  return ['---', ...fields, `relates: ${GIT_RELATES[type].join(', ')}`, `exported: ${url} · ${at}`, '---', '', `# ${TITLE_PREFIX[type]}: ${name}`, '', ...body].join('\n');
+  const file = (exported) =>
+    ['---', ...fields, `relates: ${GIT_RELATES[type].join(', ')}`, `exported: ${exported}`, '---', '', `# ${TITLE_PREFIX[type]}: ${name}`, '', ...body].join('\n');
+  return file(`${url} · ${at} · sha256:${bodyHash(file(`${url} · ${at}`))}`);
+}
+
+/**
+ * The SHA-256 hash, in lowercase hex, of the body of a document. The input
+ * of the hash is the lines of splitLines after the closing line of the
+ * frontmatter, joined with "\n", with the whitespace at the end removed, as
+ * UTF-8. So the hash ignores a byte order mark, "\r\n" or "\r" line endings,
+ * and a newline that a save adds to or drops from the end of the file.
+ * Returns null when the text has no frontmatter with a closing line.
+ */
+export function bodyHash(text) {
+  const fm = readFrontmatter(text);
+  if (!fm || fm.end < 0) return null;
+  return createHash('sha256').update(splitLines(text).slice(fm.end + 1).join('\n').trimEnd(), 'utf8').digest('hex');
+}
+
+/** Whether the `exported` field of the text holds a hash, and that hash is the bodyHash of the text. */
+export function unchangedSinceExport(text) {
+  const hash = readFrontmatter(text)?.fields.exported?.value.match(EXPORTED_HASH)?.[1];
+  return Boolean(hash) && hash === bodyHash(text);
 }
 
 /** Maps the id of each comment anchor in the content to its `resolved` attribute. */
