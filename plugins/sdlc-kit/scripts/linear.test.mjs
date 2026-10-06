@@ -1,11 +1,12 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { exportDocument, frontmatterType, isoNow, readFrontmatter, threads } from './linear.mjs';
+import { bodyHash, exportDocument, frontmatterType, isoNow, readFrontmatter, threads, unchangedSinceExport } from './linear.mjs';
 import { lintText } from './lint.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -91,6 +92,8 @@ function tempDir() {
   return mkdtempSync(join(tmpdir(), 'sdlc-kit-linear-'));
 }
 
+const sha256 = (text) => createHash('sha256').update(text, 'utf8').digest('hex');
+
 describe('readFrontmatter', () => {
   test('the stored form of Linear gives each field with its line', () => {
     assert.deepEqual(readFrontmatter(STORED_SPEC), {
@@ -174,7 +177,7 @@ describe('export', () => {
       'type: intent',
       'owner: Ana Nowak',
       'relates: spec.md, plan.md',
-      `exported: ${URL} · ${AT}`,
+      `exported: ${URL} · ${AT} · sha256:${bodyHash(exported)}`,
       '---',
       '',
       '# Intent: Weekly export of vault deposits',
@@ -184,40 +187,55 @@ describe('export', () => {
   });
 
   test('the stored spec of Linear exports with its fields in order and the relative links of a spec', () => {
+    const body = ['', '# Spec: Weekly export', '', '## 1. Terms', 'One term.', ''].join('\n');
+    const hash = sha256(body.trimEnd());
     assert.equal(
       exportDocument(STORED_SPEC, { url: URL, title: 'Spec: Weekly export', at: AT }),
-      [
-        '---',
-        'type: spec',
-        'owner: Łukasz Zimnoch',
-        'relates: intent.md, plan.md',
-        `exported: ${URL} · ${AT}`,
-        '---',
-        '',
-        '# Spec: Weekly export',
-        '',
-        '## 1. Terms',
-        'One term.',
-        '',
-      ].join('\n'),
+      ['---', 'type: spec', 'owner: Łukasz Zimnoch', 'relates: intent.md, plan.md', `exported: ${URL} · ${AT} · sha256:${hash}`, '---', body].join('\n'),
     );
+  });
+
+  test('the hash of the exported field is the SHA-256 hash of the text after the closing "---" line, with no whitespace at the end', () => {
+    const close = exported.indexOf('\n---\n') + '\n---\n'.length;
+    assert.match(exported, new RegExp(`^exported: .* · sha256:${sha256(exported.slice(close).trimEnd())}$`, 'm'));
+  });
+
+  test('a file that git stores and gives back has the hash of its exported field', () => {
+    const dir = tempDir();
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', ...args], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' },
+    });
+    git('init', '-q');
+    writeFileSync(join(dir, 'intent.md'), exported);
+    git('add', 'intent.md');
+    git('commit', '-q', '-m', 'Export the intent');
+    const stored = git('show', 'HEAD:intent.md').stdout;
+    assert.equal(stored, exported);
+    assert.equal(unchangedSinceExport(stored), true);
   });
 
   test('a title with no prefix is the name', () => {
     assert.match(exportDocument(INTENT, { url: URL, title: 'Weekly export', at: AT }), /^# Intent: Weekly export$/m);
   });
 
-  test('a second export replaces the exported field', () => {
-    const again = exportDocument(exported, { url: URL, title: TITLE, at: '2026-10-01T12:00:00Z' });
-    assert.deepEqual(again.split('\n').filter((l) => l.startsWith('exported:')), [`exported: ${URL} · 2026-10-01T12:00:00Z`]);
-  });
+  for (const [form, earlier] of [
+    ['a hash', exported],
+    ['no hash', exported.replace(/ · sha256:[0-9a-f]+$/m, '')],
+  ]) {
+    test(`a second export replaces an exported field with ${form}`, () => {
+      const again = exportDocument(earlier, { url: URL, title: TITLE, at: '2026-10-01T12:00:00Z' });
+      assert.deepEqual(again.split('\n').filter((l) => l.startsWith('exported:')), [`exported: ${URL} · 2026-10-01T12:00:00Z · sha256:${bodyHash(again)}`]);
+    });
+  }
 
   test('the exported intent passes the lint of the git form', () => {
     assert.deepEqual(lintText(exported, { type: 'intent', form: 'git' }), []);
   });
 
   test('the time defaults to now, with no milliseconds', () => {
-    assert.match(exportDocument(INTENT, { url: URL, title: TITLE }), /^exported: \S+ · \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/m);
+    assert.match(exportDocument(INTENT, { url: URL, title: TITLE }), /^exported: \S+ · \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z · sha256:[0-9a-f]{64}$/m);
     assert.equal(isoNow(new Date('2026-09-29T10:11:12.345Z')), '2026-09-29T10:11:12Z');
   });
 
@@ -298,6 +316,61 @@ describe('threads', () => {
   test('an input with no comments array throws', () => {
     assert.throws(() => threads({ nodes: [] }), /no "comments" array/);
   });
+});
+
+describe('bodyHash', () => {
+  const file = '---\ntype: intent\n---\n\n# Intent: X\nOne line.\n';
+
+  test('the input is the text after the closing line of the frontmatter, with no whitespace at the end', () => {
+    assert.equal(bodyHash(file), sha256('\n# Intent: X\nOne line.'));
+  });
+
+  for (const [name, text] of [
+    ['"\\r\\n" line endings', file.replaceAll('\n', '\r\n')],
+    ['"\\r" line endings', file.replaceAll('\n', '\r')],
+    ['a byte order mark', `\uFEFF${file}`],
+    ['no newline at the end', file.replace(/\n$/, '')],
+    ['more newlines and spaces at the end', `${file}  \n\n`],
+  ]) {
+    test(`a file with ${name} has the same hash`, () => {
+      assert.equal(bodyHash(text), bodyHash(file));
+    });
+  }
+
+  for (const [name, text] of [
+    ['an edited line', file.replace('One line.', 'One new line.')],
+    ['a new line before the last line', file.replace('One line.', '\nOne line.')],
+    ['a space at the end of a line before the last line', file.replace('# Intent: X', '# Intent: X ')],
+  ]) {
+    test(`a body with ${name} has another hash`, () => {
+      assert.notEqual(bodyHash(text), bodyHash(file));
+    });
+  }
+
+  for (const [name, text] of [
+    ['no frontmatter', '# Intent: X\n'],
+    ['a frontmatter with no closing line', '---\ntype: intent\n'],
+  ]) {
+    test(`a text with ${name} has no hash`, () => {
+      assert.equal(bodyHash(text), null);
+    });
+  }
+});
+
+describe('unchangedSinceExport', () => {
+  const exported = exportDocument(INTENT, { url: URL, title: TITLE, at: AT });
+
+  for (const [name, text, expected] of [
+    ['an exported file', exported, true],
+    ['an exported file with an edited body', exported.replace('every Monday at 09:00 UTC', 'every Tuesday at 09:00 UTC'), false],
+    ['an exported field with no hash', exported.replace(/ · sha256:[0-9a-f]+$/m, ''), false],
+    ['an exported field with the hash of another body', exported.replace(/sha256:[0-9a-f]+$/m, `sha256:${sha256('another body')}`), false],
+    ['a file with no exported field', exported.replace(/^exported: .*\n/m, ''), false],
+  ]) {
+    test(`${name} is ${expected ? '' : 'not '}unchanged since the export`, () => {
+      assert.equal(unchangedSinceExport(text), expected);
+    });
+  }
 });
 
 describe('cli', () => {

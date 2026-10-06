@@ -174,7 +174,8 @@ const NOT_VERBS_ING = new Set([
 const ING_TECHNICAL_NAMES = new Set(['operating system', 'logging level']);
 
 const MAX_SENTENCE_WORDS = 25;
-const EXPORTED_VALUE = /^https?:\/\/\S+[ \t]+·[ \t]+\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/;
+// A file that plugin 1.0.0 exported has no hash, so the hash part is optional.
+const EXPORTED_VALUE = /^https?:\/\/\S+[ \t]+·[ \t]+\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})(?:[ \t]+·[ \t]+sha256:[0-9a-f]{64})?$/;
 const PLACEHOLDER = /<[a-z][a-z -]*>/gi;
 const URL_ITEM = /^https?:\/\/\S+$/;
 
@@ -574,7 +575,7 @@ function checkFields(frontmatter, type, form, exists, add) {
   } else if (!exported) {
     add(top, 'structure-exported', 'the git file has no "exported" field; write the file with linear.mjs export');
   } else if (!EXPORTED_VALUE.test(exported.value)) {
-    add(exported.index + 1, 'structure-exported', 'write the field as "exported: <document URL> · <ISO time>"');
+    add(exported.index + 1, 'structure-exported', 'write the field as "exported: <document URL> · <ISO time> · sha256:<body hash>"');
   }
 }
 

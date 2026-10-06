@@ -27,10 +27,11 @@ if (isMain && process.env.SDLC_KIT_GATE) process.exit(0);
 let lintText;
 let stripAnchors;
 let frontmatterType;
+let unchangedSinceExport;
 let lintLoadError = null;
 try {
   ({ lintText } = await import('../scripts/lint.mjs'));
-  ({ stripAnchors, frontmatterType } = await import('../scripts/linear.mjs'));
+  ({ stripAnchors, frontmatterType, unchangedSinceExport } = await import('../scripts/linear.mjs'));
 } catch (e) {
   lintLoadError = e;
 }
@@ -664,7 +665,10 @@ const REPEAT_JUDGE = 'Fix each finding. Then repeat the call.';
 /**
  * Gates one document: the lint first, then the judge. The gate removes the
  * comment anchors of Linear first, so the judge reads the text without them.
- * A lint finding denies with no judge run. A judge verdict with a finding, or with a FAIL, denies.
+ * A lint finding denies with no judge run. A git file of an intent or a spec
+ * whose body is unchanged since the export passes with no judge run, because
+ * its text passed the gate at its save in Linear.
+ * A judge verdict with a finding, or with a FAIL, denies.
  * Every error of the judge run denies too. The judge run gets the time left
  * until `deadline`, and with less than `floorMs` left the gate denies with no
  * judge run. `form` is the form of the lint: "linear" for a save, "git"
@@ -680,6 +684,7 @@ export function gate(text, { type, form, name, exists, env = process.env, deadli
     const lines = findings.map((f) => `${f.path}:${f.line}: ${f.rule}: ${f.message}`);
     return { decision: 'deny', stage: 'lint', reason: `document-gate: the lint found these lines in ${name}:\n${lines.join('\n')}\n${REPEAT_SAVE}` };
   }
+  if (form === 'git' && LINEAR_TYPES.includes(type) && unchangedSinceExport(text)) return { decision: 'allow', stage: 'lint' };
   const left = deadline - Date.now();
   if (left < floorMs) return { decision: 'deny', stage: 'judge', reason: outOfTimeReason(name) };
   let verdict;

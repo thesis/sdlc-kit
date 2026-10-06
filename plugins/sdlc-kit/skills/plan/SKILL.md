@@ -64,7 +64,7 @@ When the lint lists findings, or the gate denies a save or a push, fix the lines
     When you find a plan, give the owner what you found and ask what to do. Go on only when the owner says so. When you find none, tell the owner that the search is best effort and that the owner checks that no plan exists. Then go on.
 13. Propose the stage directory name `.sdlc-kit/YYYY-MM-<slug>/` from the current month and the title of the spec. Wait for the owner to accept or change it.
 14. Create the branch from the default branch of the remote. The name follows the rules of the target repository.
-15. Export each document into the stage directory, the intent to `intent.md` and the spec to `spec.md`. Pass the title of the Linear document as `--title`. The export writes the frontmatter between `---` lines with the `relates` field of the git form and the `exported` field, then the title line `# Intent: <name>` or `# Spec: <name>`. In git, the `relates` field links the other files of the stage directory by relative path:
+15. Export each document into the stage directory, the intent to `intent.md` and the spec to `spec.md`. Pass the title of the Linear document as `--title`. The export writes the frontmatter between `---` lines with the `relates` field of the git form and the `exported` field, then the title line `# Intent: <name>` or `# Spec: <name>`. The `exported` field holds the URL of the document, the time of the export and a hash of the text after the frontmatter. The gate runs no writing judge on a file whose text still has that hash. In git, the `relates` field links the other files of the stage directory by relative path:
 
     ```
     node ${CLAUDE_PLUGIN_ROOT}/scripts/linear.mjs export --url <document URL> --title <document title> <content.md>
